@@ -1,0 +1,115 @@
+(.venv) PS D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\backend> python -c "import mediapipe, faiss, numpy, cv2; print('✅ IA deps OK')"
+
+A module that was compiled using NumPy 1.x cannot be run in
+NumPy 2.4.4 as it may crash. To support both 1.x and 2.x
+versions of NumPy, modules must be compiled with NumPy 2.0.
+Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+
+If you are a user of the module, the easiest solution will be to
+downgrade to 'numpy<2' or try to upgrade the affected module.
+We expect that some modules will need time to support NumPy 2.
+
+Traceback (most recent call last):  File "<string>", line 1, in <module>
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\faiss\__init__.py", line 29, in <module>
+    from .loader import *
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\faiss\loader.py", line 87, in <module>
+    from .swigfaiss_avx2 import *
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\faiss\swigfaiss_avx2.py", line 10, in <module>
+    from . import _swigfaiss_avx2
+Traceback (most recent call last):
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\numpy\core\_multiarray_umath.py", line 46, in __getattr__
+    raise ImportError(msg)
+ImportError:
+A module that was compiled using NumPy 1.x cannot be run in
+NumPy 2.4.4 as it may crash. To support both 1.x and 2.x
+versions of NumPy, modules must be compiled with NumPy 2.0.
+Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+
+If you are a user of the module, the easiest solution will be to
+downgrade to 'numpy<2' or try to upgrade the affected module.
+We expect that some modules will need time to support NumPy 2.
+
+
+
+A module that was compiled using NumPy 1.x cannot be run in
+NumPy 2.4.4 as it may crash. To support both 1.x and 2.x
+versions of NumPy, modules must be compiled with NumPy 2.0.
+Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+
+If you are a user of the module, the easiest solution will be to
+downgrade to 'numpy<2' or try to upgrade the affected module.
+We expect that some modules will need time to support NumPy 2.
+
+Traceback (most recent call last):  File "<string>", line 1, in <module>
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\faiss\__init__.py", line 29, in <module>
+    from .loader import *
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\faiss\loader.py", line 98, in <module>
+    from .swigfaiss import *
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\faiss\swigfaiss.py", line 10, in <module>
+    from . import _swigfaiss
+Traceback (most recent call last):
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\numpy\core\_multiarray_umath.py", line 46, in __getattr__
+    raise ImportError(msg)
+ImportError:
+A module that was compiled using NumPy 1.x cannot be run in
+NumPy 2.4.4 as it may crash. To support both 1.x and 2.x
+versions of NumPy, modules must be compiled with NumPy 2.0.
+Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+    from . import _swigfaiss
+Traceback (most recent call last):
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\numpy\core\_multiarray_umath.py", line 46, in __getattr__
+    raise ImportError(msg)
+ImportError:
+A module that was compiled using NumPy 1.x cannot be run in
+NumPy 2.4.4 as it may crash. To support both 1.x and 2.x
+versions of NumPy, modules must be compiled with NumPy 2.0.
+    from . import _swigfaiss
+Traceback (most recent call last):
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\numpy\core\_multiarray_umath.py", line 46, in __getattr__
+    raise ImportError(msg)
+ImportError:
+A module that was compiled using NumPy 1.x cannot be run in
+NumPy 2.4.4 as it may crash. To support both 1.x and 2.x
+    from . import _swigfaiss
+Traceback (most recent call last):
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\numpy\core\_multiarray_umath.py", line 46, in __getattr__
+    raise ImportError(msg)
+ImportError:
+    from . import _swigfaiss
+Traceback (most recent call last):
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\numpy\core\_multiarray_umath.py", line 46, in __getattr__
+    raise ImportError(msg)
+ImportError:
+A module that was compiled using NumPy 1.x cannot be run in
+    from . import _swigfaiss
+Traceback (most recent call last):
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\numpy\core\_multiarray_umath.py", line 46, in __getattr__
+    raise ImportError(msg)
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\numpy\core\_multiarray_umath.py", line 46, in __getattr__
+    raise ImportError(msg)
+ImportError:
+ImportError:
+A module that was compiled using NumPy 1.x cannot be run in
+NumPy 2.4.4 as it may crash. To support both 1.x and 2.x
+NumPy 2.4.4 as it may crash. To support both 1.x and 2.x
+versions of NumPy, modules must be compiled with NumPy 2.0.
+Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
+
+If you are a user of the module, the easiest solution will be to
+downgrade to 'numpy<2' or try to upgrade the affected module.
+downgrade to 'numpy<2' or try to upgrade the affected module.
+We expect that some modules will need time to support NumPy 2.
+
+
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\faiss\loadit__.py", line 29, in <module>er.py", line 98, in <module>
+    from .swigfaiss import *                                                                               er.py", line 98, in <module>
+  File "D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Lib\site-packages\faiss\swigfaiss.py", line 10, in <module>                                                                            faiss.py", line 10, in <module>
+    from . import _swigfaiss
+ImportError: numpy.core.multiarray failed to import

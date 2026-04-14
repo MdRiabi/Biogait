@@ -1,12 +1,70 @@
+# =============================================================================
+# BIOGAIT - REQUIREMENTS COMPLETS (ÉTAPE 1 + ÉTAPE 2)
+# Compatible Python 3.11-3.12, Windows/Linux/macOS
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FASTAPI & ASYNC BACKEND
+# ─────────────────────────────────────────────────────────────────────────────
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
+pydantic==2.5.0
 pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BASE DE DONNÉES & CACHE
+# ─────────────────────────────────────────────────────────────────────────────
 sqlalchemy[asyncio]==2.0.23
 asyncpg==0.29.0
+redis==5.0.1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SÉCURITÉ & AUTH
+# ─────────────────────────────────────────────────────────────────────────────
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt<4.0.0                      # FIX: Compatibilité passlib
+cryptography==41.0.7              # Pour AES-256 et JWT
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MIDDLEWARE & RATE LIMITING
+# ─────────────────────────────────────────────────────────────────────────────
 slowapi==0.1.9
 python-multipart==0.0.6
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IA CORE — MEDIAPIPE & FEATURE EXTRACTION
+# ─────────────────────────────────────────────────────────────────────────────
+mediapipe>=0.10.14                 # Pose estimation (17-33 keypoints)
+opencv-python==4.8.1.78           # Traitement vidéo & images
+numpy==1.26.2                     # Calcul matriciel (requis par MediaPipe/FAISS)
+scipy==1.11.4                     # Pour FFT et stats avancées
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VECTOR SEARCH — FAISS
+# ─────────────────────────────────────────────────────────────────────────────
+# Choix 1: CPU only (recommandé pour dev/test)
+faiss-cpu>=1.8.0
+# Choix 2: GPU support (décommenter si CUDA disponible)
+# faiss-gpu==1.7.4
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TESTING & BENCHMARK
+# ─────────────────────────────────────────────────────────────────────────────
 pytest==7.4.3
 pytest-asyncio==0.23.2
-httpx==0.25.2
+pytest-cov==4.1.0                 # Coverage reports
+httpx==0.25.2                     # Client async pour tests API
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UTILITAIRES & EXPORT
+# ─────────────────────────────────────────────────────────────────────────────
+reportlab==4.0.8                  # Export PDF signé (dashboard)
+Pillow==10.1.0                    # Manipulation images (anonymisation)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LOGGING & MONITORING (optionnel mais recommandé)
+# ─────────────────────────────────────────────────────────────────────────────
+structlog==23.2.0                 # Logging structuré pour audit
+prometheus-client==0.19.0         # Métriques de performance (optionnel)
