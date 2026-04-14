@@ -1,0 +1,36 @@
+from fastapi import FastAPI, Request
+from app.config import get_settings
+from app.db.base import Base
+from app.db.session import engine
+from app.core.middleware import AuditMiddleware
+from app.core.security import limiter
+from app.api.v1.auth import router as auth_router
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from starlette.middleware.cors import CORSMiddleware
+import logging
+
+logging.basicConfig(level=logging.INFO)
+settings = get_settings()
+
+app = FastAPI(title=settings.APP_NAME)
+
+# Middleware
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(AuditMiddleware)
+
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc):
+    return {"detail": "Rate limit exceeded. Try again later."}
+
+app.include_router(auth_router, prefix="/api/v1")
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
