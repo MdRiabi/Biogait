@@ -1,0 +1,857 @@
+Prompt
+
+
+
+Tu es un ingénieur senior full-stack & ML spécialisé en biométrie comportementale.
+
+Tu vas m'aider à implémenter de A à Z un système de reconnaissance biométrique par
+
+démarche (Gait Recognition) nommé BioGait, conforme RGPD & AI Act.
+
+
+
+=== STACK TECHNIQUE FIXÉE ===
+
+- Backend : Python FastAPI (async), WebSockets, REST
+
+- IA Core : MediaPipe Pose (17 keypoints), FAISS (vector search), TensorFlow/PyTorch
+
+- Frontend : NiceGUI + TailwindCSS + Chart.js
+
+- Mobile : PWA React + WebRTC (flux caméra smartphone → serveur PC)
+
+- BDD : PostgreSQL (profils/métadonnées) + FAISS index (vecteurs biométriques) + Redis (sessions/alertes)
+
+- Sécurité : AES-256 at rest, TLS in transit, JWT auth, RBAC
+
+- DevOps : Docker Compose, GitHub
+
+
+
+=== PIPELINE IA (ordre strict) ===
+
+1. Capture vidéo → 30 FPS
+
+2. MediaPipe Pose → extraction 17 keypoints (x, y) par frame
+
+3. Buffer 30 frames → séquence temporelle (1 seconde de marche)
+
+4. Feature engineering → vecteur 128D (angles articulaires, vitesse, longueur de foulée,
+
+   rythme, oscillation latérale)
+
+5. FAISS similarity search → score de confiance [0-100%]
+
+6. Decision logic → seuil configurable par zone (75% zone normale / 95% salle serveurs)
+
+7. Output → log anonymisé + push WebSocket dashboard + alerte PWA
+
+
+
+=== 4 MODULES MÉTIER ===
+
+Module A — Enrôlement :
+
+  - Capture 5 séquences (angles différents, vitesses différentes)
+
+  - Extraction + moyenne des vecteurs → profil stable
+
+  - Stockage : vecteur chiffré AES-256 en BDD, jamais la vidéo brute
+
+
+
+Module B — Reconnaissance temps réel :
+
+  - Stream continu depuis caméra IP ou mobile via WebRTC
+
+  - Identification < 2s après 30 frames capturées
+
+  - Sortie : nom + score + zone autorisée ou ALERTE
+
+
+
+Module C — Dashboard Admin :
+
+  - Accès réussis (qui, quand, score de confiance)
+
+  - Alertes actives (inconnus, accès refusés, tentatives répétées)
+
+  - Stats : taux de reconnaissance, FAR, FRR, courbe ROC
+
+  - Replay vidéo floutée (anonymisation RGPD)
+
+  - Logs d'audit complets (export PDF signé numériquement)
+
+
+
+Module D — Conformité & Gouvernance :
+
+  - Purge automatique vidéo brute après X heures (configurable)
+
+  - Registre de traitement ISO 27701 (finalité, base juridique, durée de rétention)
+
+  - DPIA simulée (Art. 35 RGPD)
+
+  - Classification AI Act (système haut risque → Art. 9, 10, 11, 12, 14, 15)
+
+
+
+=== MÉTRIQUES DE PERFORMANCE CIBLES ===
+
+- Accuracy ≥ 90%
+
+- FAR (False Acceptance Rate) ≤ 5%
+
+- FRR (False Rejection Rate) ≤ 10%
+
+- Latence décision ≤ 2 secondes
+
+- Dérive de démarche → déclenchement re-enrôlement automatique
+
+
+
+=== DATASET ===
+
+Utilise un dataset public existant (CASIA-B ou CMU MoBo ou OU-ISIR).
+
+Adapte le preprocessing pour correspondre au format MediaPipe 17 keypoints.
+
+
+
+=== STRUCTURE DU PROJET ===
+
+biogait/
+
+├── backend/
+
+│   ├── api/           # FastAPI routes (REST + WebSocket)
+
+│   ├── core/          # Pipeline IA (extraction, matching, décision)
+
+│   ├── modules/       # Enrôlement, Reconnaissance, Alertes, Conformité
+
+│   ├── models/        # Schemas Pydantic + ORM SQLAlchemy
+
+│   └── security/      # JWT, AES-256, RBAC, audit logs
+
+├── frontend/
+
+│   ├── dashboard/     # NiceGUI + TailwindCSS
+
+│   └── pwa/           # React PWA + WebRTC
+
+├── data/
+
+│   ├── vectors/       # Index FAISS chiffré
+
+│   └── logs/          # Audit trail immuable
+
+├── docker/
+
+│   └── docker-compose.yml
+
+└── docs/
+
+    └── DPIA.md / RACI.md / registre_traitement.md
+
+
+
+=== ORDRE D'IMPLÉMENTATION (STRICT) ===
+
+
+
+ÉTAPE 1 — Infrastructure de base
+
+  → Docker Compose : PostgreSQL + Redis + FastAPI skeleton
+
+  → JWT auth + RBAC (rôles : admin, superviseur, viewer)
+
+  → Audit log middleware (chaque requête loguée avec timestamp + user + action)
+
+
+
+ÉTAPE 2 — Pipeline IA (cœur du système)
+
+  → Script de preprocessing dataset (CASIA-B → keypoints MediaPipe format)
+
+  → Extracteur de features (angles, vitesse, foulée → vecteur 128D)
+
+  → Construction index FAISS + benchmark vitesse de recherche
+
+  → Tests unitaires : FAR/FRR sur dataset de validation
+
+
+
+ÉTAPE 3 — Module Enrôlement
+
+  → Endpoint POST /enroll (upload vidéo ou stream)
+
+  → Validation : 5 séquences minimum, qualité skeleton > seuil
+
+  → Chiffrement AES-256 du vecteur avant stockage
+
+  → Interface NiceGUI : formulaire + visualisation skeleton temps réel
+
+
+
+ÉTAPE 4 — Module Reconnaissance temps réel
+
+  → WebRTC receiver → frame extraction → pipeline IA
+
+  → WebSocket push : résultat de reconnaissance vers dashboard
+
+  → Logique de décision par zone (seuil configurable par caméra)
+
+  → Anonymisation automatique : flou sur visage + suppression vidéo brute après TTL
+
+
+
+ÉTAPE 5 — Dashboard Admin
+
+  → Vue monitoring : flux caméras actives + événements en temps réel
+
+  → Vue alertes : fil d'alertes filtrables par niveau (CRITIQUE/IMPORTANT/INFO)
+
+  → Vue stats : Chart.js (courbe ROC, histogramme des scores, heatmap horaire)
+
+  → Vue logs : export PDF signé (reportlab) avec hash SHA-256 pour intégrité
+
+
+
+ÉTAPE 6 — PWA Mobile
+
+  → React PWA avec service worker
+
+  → WebRTC : caméra smartphone → stream vers serveur
+
+  → Push notifications : alertes temps réel avec photo + localisation + boutons action
+
+
+
+ÉTAPE 7 — Conformité RGPD & AI Act
+
+  → Module purge automatique (cron job : suppression vidéo brute après TTL)
+
+  → Registre de traitement généré dynamiquement depuis BDD
+
+  → Interface DPIA (formulaire structuré Art. 35 RGPD)
+
+  → Interface supervision humaine (Art. 14 AI Act) : override manuel, justification obligatoire
+
+
+
+ÉTAPE 8 — Tests & Évaluation
+
+  → Mode simulation : injection de vidéos préenregistrées
+
+  → Test attaques simples (replay attack, adversarial walking)
+
+  → Analyse biais : performances par genre/âge/morphologie sur dataset
+
+  → Rapport de performance final (accuracy, FAR, FRR, latence P95)
+
+
+
+=== CONTRAINTES NON NÉGOCIABLES ===
+
+- JAMAIS stocker la vidéo brute au-delà du TTL configuré
+
+- JAMAIS stocker des images de visages
+
+- Vecteurs biométriques TOUJOURS chiffrés AES-256 au repos
+
+- TOUTE action admin loguée avec user + timestamp + hash d'intégrité
+
+- Chaque endpoint FastAPI DOIT avoir : auth JWT + rate limiting + input validation Pydantic
+
+
+
+=== FORMAT DE RÉPONSE ATTENDU ===
+
+Pour chaque étape que je te demande d'implémenter :
+
+1. Architecture decision brief (2-3 lignes max — pourquoi ce choix)
+
+2. Code complet et fonctionnel (pas de pseudocode, pas de TODO)
+
+3. Tests associés (pytest pour backend, validation manuelle pour IA)
+
+4. Checklist conformité (ce que cette étape couvre en RGPD/AI Act/ISO)
+
+
+
+Commence par l'ÉTAPE 1. Ne génère pas toutes les étapes d'un coup.
+
+Attends ma validation avant de passer à l'étape suivante.
+
+
+
+**************************************************************
+
+
+
+Error
+
+
+
+
+
+(.venv) PS D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait> Get-ChildItem -Path backend -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+
+>> Remove-Item -Path backend\.pytest_cache -Recurse -Force -ErrorAction SilentlyContinue
+
+(.venv) PS D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait> docker ps
+
+CONTAINER ID   IMAGE                COMMAND                  CREATED          STATUS          PORTS                                         NAMES
+
+8fcd03db37b3   postgres:15-alpine   "docker-entrypoint.s…"   48 minutes ago   Up 48 minutes   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp   biogait-db
+
+01ebfdd8814d   redis:7-alpine       "docker-entrypoint.s…"   48 minutes ago   Up 48 minutes   0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp   biogait-redis
+
+(.venv) PS D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait> cd backend
+
+(.venv) PS D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\backend> python -m pytest tests/test_infra.py -v
+
+========================================================================= test session starts ==========================================================================
+
+platform win32 -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\.venv\Scripts\python.exe
+
+cachedir: .pytest_cache
+
+rootdir: D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\backend\tests
+
+configfile: pytest.ini
+
+plugins: anyio-4.13.0, asyncio-1.3.0
+
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=session, asyncio_default_test_loop_scope=function
+
+collected 2 items                                                                                                                                                       
+
+
+
+tests\test_infra.py::test_register_and_login FAILED                                                                                                               [ 50%]
+
+tests\test_infra.py::test_rbac_restriction FAILED                                                                                                                 [100%]
+
+
+
+=============================================================================== FAILURES ===============================================================================
+
+_______________________________________________________________________ test_register_and_login ________________________________________________________________________
+
+
+
+client = <httpx.AsyncClient object at 0x0000020DCFE63470>
+
+
+
+    @pytest.mark.asyncio
+
+    async def test_register_and_login(client):
+
+        # Inscription
+
+>       res = await client.post("/api/v1/auth/register", json={
+
+            "username": "testadmin",
+
+            "password": "strongpass",
+
+            "role": "admin"
+
+        })
+
+
+
+tests\test_infra.py:7: 
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+..\.venv\Lib\site-packages\httpx\_client.py:1859: in post
+
+    return await self.request(
+
+..\.venv\Lib\site-packages\httpx\_client.py:1540: in request
+
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\httpx\_client.py:1629: in send
+
+    response = await self._send_handling_auth(
+
+..\.venv\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+
+    response = await self._send_handling_redirects(
+
+..\.venv\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+
+    response = await self._send_single_request(request)
+
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+
+    response = await transport.handle_async_request(request)
+
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\httpx\_transports\asgi.py:170: in handle_async_request
+
+    await self.app(scope, receive, send)
+
+..\.venv\Lib\site-packages\fastapi\applications.py:1163: in __call__
+
+    await super().__call__(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\applications.py:90: in __call__
+
+    await self.middleware_stack(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+
+    raise exc
+
+..\.venv\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+
+    await self.app(scope, receive, _send)
+
+..\.venv\Lib\site-packages\starlette\middleware\cors.py:88: in __call__
+
+    await self.app(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+
+    raise exc
+
+..\.venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+
+    await app(scope, receive, sender)
+
+..\.venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+
+    await self.app(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\routing.py:660: in __call__
+
+    await self.middleware_stack(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\routing.py:680: in app
+
+    await route.handle(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\routing.py:276: in handle
+
+    await self.app(scope, receive, send)
+
+..\.venv\Lib\site-packages\fastapi\routing.py:134: in app
+
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+
+    raise exc
+
+..\.venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+
+    await app(scope, receive, sender)
+
+..\.venv\Lib\site-packages\fastapi\routing.py:120: in app
+
+    response = await f(request)
+
+               ^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\fastapi\routing.py:674: in app
+
+    raw_response = await run_endpoint_function(
+
+..\.venv\Lib\site-packages\fastapi\routing.py:328: in run_endpoint_function
+
+    return await dependant.call(**values)
+
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+app\api\v1\auth.py:23: in register
+
+    exists = await db.execute(select(User).where(User.username == user.username))
+
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\sqlalchemy\ext\asyncio\session.py:449: in execute
+
+    result = await greenlet_spawn(
+
+..\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:201: in greenlet_spawn
+
+    result = context.throw(*sys.exc_info())
+
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\sqlalchemy\orm\session.py:2351: in execute
+
+    return self._execute_internal(
+
+..\.venv\Lib\site-packages\sqlalchemy\orm\session.py:2249: in _execute_internal
+
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+
+..\.venv\Lib\site-packages\sqlalchemy\orm\context.py:306: in orm_execute_statement
+
+    result = conn.execute(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:1419: in execute
+
+    return meth(
+
+..\.venv\Lib\site-packages\sqlalchemy\sql\elements.py:527: in _execute_on_connection
+
+    return connection._execute_clauseelement(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:1641: in _execute_clauseelement
+
+    ret = self._execute_context(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:1846: in _execute_context
+
+    return self._exec_single_context(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:1986: in _exec_single_context
+
+    self._handle_dbapi_exception(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:2366: in _handle_dbapi_exception
+
+    raise exc_info[1].with_traceback(exc_info[2])
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+
+    self.dialect.do_execute(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\default.py:952: in do_execute
+
+    cursor.execute(statement, parameters)
+
+..\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:585: in execute
+
+    self._adapt_connection.await_(
+
+..\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+
+    value = await result
+
+            ^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:520: in _prepare_and_execute
+
+    await adapt_connection._start_transaction()
+
+..\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:850: in _start_transaction
+
+    self._handle_exception(error)
+
+..\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:799: in _handle_exception
+
+    raise error
+
+..\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:848: in _start_transaction
+
+    await self._transaction.start()
+
+..\.venv\Lib\site-packages\asyncpg\transaction.py:146: in start
+
+    await self._connection.execute(query)
+
+..\.venv\Lib\site-packages\asyncpg\connection.py:354: in execute
+
+    result = await self._protocol.query(query, timeout)
+
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+
+
+>   ???
+
+E   RuntimeError: Task <Task pending name='Task-5' coro=<test_register_and_login() running at D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\backend\tests\test_infra.py:7> cb=[_run_until_complete_cb() at C:\Python312\Lib\asyncio\base_events.py:182]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+
+
+
+asyncpg/protocol/protocol.pyx:369: RuntimeError
+
+________________________________________________________________________ test_rbac_restriction _________________________________________________________________________
+
+
+
+client = <httpx.AsyncClient object at 0x0000020DCFED6270>
+
+
+
+    @pytest.mark.asyncio
+
+    async def test_rbac_restriction(client):
+
+        # Création viewer
+
+>       await client.post("/api/v1/auth/register", json={
+
+            "username": "viewer1",
+
+            "password": "pass123",
+
+            "role": "viewer"
+
+        })
+
+
+
+tests\test_infra.py:25: 
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+..\.venv\Lib\site-packages\httpx\_client.py:1859: in post
+
+    return await self.request(
+
+..\.venv\Lib\site-packages\httpx\_client.py:1540: in request
+
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\httpx\_client.py:1629: in send
+
+    response = await self._send_handling_auth(
+
+..\.venv\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+
+    response = await self._send_handling_redirects(
+
+..\.venv\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+
+    response = await self._send_single_request(request)
+
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+
+    response = await transport.handle_async_request(request)
+
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\httpx\_transports\asgi.py:170: in handle_async_request
+
+    await self.app(scope, receive, send)
+
+..\.venv\Lib\site-packages\fastapi\applications.py:1163: in __call__
+
+    await super().__call__(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\applications.py:90: in __call__
+
+    await self.middleware_stack(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+
+    raise exc
+
+..\.venv\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+
+    await self.app(scope, receive, _send)
+
+..\.venv\Lib\site-packages\starlette\middleware\cors.py:88: in __call__
+
+    await self.app(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+
+    raise exc
+
+..\.venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+
+    await app(scope, receive, sender)
+
+..\.venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+
+    await self.app(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\routing.py:660: in __call__
+
+    await self.middleware_stack(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\routing.py:680: in app
+
+    await route.handle(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\routing.py:276: in handle
+
+    await self.app(scope, receive, send)
+
+..\.venv\Lib\site-packages\fastapi\routing.py:134: in app
+
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+
+..\.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+
+    raise exc
+
+..\.venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+
+    await app(scope, receive, sender)
+
+..\.venv\Lib\site-packages\fastapi\routing.py:120: in app
+
+    response = await f(request)
+
+               ^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\fastapi\routing.py:674: in app
+
+    raw_response = await run_endpoint_function(
+
+..\.venv\Lib\site-packages\fastapi\routing.py:328: in run_endpoint_function
+
+    return await dependant.call(**values)
+
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+app\api\v1\auth.py:23: in register
+
+    exists = await db.execute(select(User).where(User.username == user.username))
+
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\sqlalchemy\ext\asyncio\session.py:449: in execute
+
+    result = await greenlet_spawn(
+
+..\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:201: in greenlet_spawn
+
+    result = context.throw(*sys.exc_info())
+
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\sqlalchemy\orm\session.py:2351: in execute
+
+    return self._execute_internal(
+
+..\.venv\Lib\site-packages\sqlalchemy\orm\session.py:2249: in _execute_internal
+
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+
+..\.venv\Lib\site-packages\sqlalchemy\orm\context.py:306: in orm_execute_statement
+
+    result = conn.execute(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:1419: in execute
+
+    return meth(
+
+..\.venv\Lib\site-packages\sqlalchemy\sql\elements.py:527: in _execute_on_connection
+
+    return connection._execute_clauseelement(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:1641: in _execute_clauseelement
+
+    ret = self._execute_context(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:1846: in _execute_context
+
+    return self._exec_single_context(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:1986: in _exec_single_context
+
+    self._handle_dbapi_exception(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:2366: in _handle_dbapi_exception
+
+    raise exc_info[1].with_traceback(exc_info[2])
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+
+    self.dialect.do_execute(
+
+..\.venv\Lib\site-packages\sqlalchemy\engine\default.py:952: in do_execute
+
+    cursor.execute(statement, parameters)
+
+..\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:585: in execute
+
+    self._adapt_connection.await_(
+
+..\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+
+    value = await result
+
+            ^^^^^^^^^^^^
+
+..\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:520: in _prepare_and_execute
+
+    await adapt_connection._start_transaction()
+
+..\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:850: in _start_transaction
+
+    self._handle_exception(error)
+
+..\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:799: in _handle_exception
+
+    raise error
+
+..\.venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:848: in _start_transaction
+
+    await self._transaction.start()
+
+..\.venv\Lib\site-packages\asyncpg\transaction.py:146: in start
+
+    await self._connection.execute(query)
+
+..\.venv\Lib\site-packages\asyncpg\connection.py:354: in execute
+
+    result = await self._protocol.query(query, timeout)
+
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+
+
+>   ???
+
+E   RuntimeError: Task <Task pending name='Task-13' coro=<test_rbac_restriction() running at D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\backend\tests\test_infra.py:25> cb=[_run_until_complete_cb() at C:\Python312\Lib\asyncio\base_events.py:182]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+
+
+
+asyncpg/protocol/protocol.pyx:369: RuntimeError
+
+======================================================================= short test summary info ========================================================================
+
+FAILED tests\test_infra.py::test_register_and_login - RuntimeError: Task <Task pending name='Task-5' coro=<test_register_and_login() running at D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\backend\t...
+
+FAILED tests\test_infra.py::test_rbac_restriction - RuntimeError: Task <Task pending name='Task-13' coro=<test_rbac_restriction() running at D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\backend\te...
+
+========================================================================== 2 failed in 1.36s ===========================================================================
+
+(.venv) PS D:\TEKUP\Cours\2iem Année\Biométrie et Tatouage\Projects\biogait\backend>

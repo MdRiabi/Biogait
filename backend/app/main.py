@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from app.config import get_settings
 from app.db.base import Base
@@ -13,17 +14,23 @@ import logging
 logging.basicConfig(level=logging.INFO)
 settings = get_settings()
 
-app = FastAPI(title=settings.APP_NAME)
-
-# Middleware
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-app.add_middleware(SlowAPIMiddleware)
-app.add_middleware(AuditMiddleware)
-
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    logging.info("✅ Database initialized & tables created.")
+    yield
+    await engine.dispose()
+
+app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
+
+# 🔥 CRITIQUE : DOIT être défini IMMÉDIATEMENT après l'instanciation
+app.state.limiter = limiter
+
+# Ajout des middlewares APRÈS l'initialisation du state
+app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(AuditMiddleware)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc):

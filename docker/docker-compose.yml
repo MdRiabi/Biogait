@@ -1,42 +1,31 @@
-version: "3.8"
 services:
   db:
     image: postgres:15-alpine
+    container_name: biogait-db
     environment:
       POSTGRES_USER: biogait
       POSTGRES_PASSWORD: biogaitsecret
       POSTGRES_DB: biogait
+    ports:
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql/data
     networks:
       - biogait-net
 
   redis:
     image: redis:7-alpine
+    container_name: biogait-redis
     command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
       - biogait-net
 
-  api:
-    build: ./backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    environment:
-      DATABASE_URL: postgresql+asyncpg://biogait:biogaitsecret@db:5432/biogait
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: dev-secret-key-change-in-prod
-      DEBUG: "True"
-    ports:
-      - "8000:8000"
-    depends_on:
-      - db
-      - redis
-    networks:
-      - biogait-net
-
 volumes:
-  postgres_data:
+  pg_data:
   redis_data:
 
 networks:
