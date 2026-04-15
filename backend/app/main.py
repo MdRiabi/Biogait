@@ -6,11 +6,12 @@ from app.db.session import engine
 from app.core.middleware import AuditMiddleware
 from app.core.security import limiter
 from app.api.v1.auth import router as auth_router
+
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.cors import CORSMiddleware
 import logging
-
+from app.api.v1.enrollment import router as enrollment_router
 logging.basicConfig(level=logging.INFO)
 settings = get_settings()
 
@@ -37,6 +38,7 @@ async def rate_limit_handler(request: Request, exc):
     return {"detail": "Rate limit exceeded. Try again later."}
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(enrollment_router, prefix="/api/v1")
 
 @app.get("/health")
 async def health():
