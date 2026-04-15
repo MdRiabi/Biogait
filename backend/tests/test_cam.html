@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BioGait - Test Temps Réel (Webcam)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: white; display: flex; flex-direction: column; align-items: center; padding: 2rem; }
+        .container { background: #1e293b; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 800px; text-align: center; }
+        video, canvas { border-radius: 0.5rem; background: #000; margin-bottom: 1rem; width: 100%; max-width: 640px; }
+        .status { margin: 1rem 0; padding: 1rem; border-radius: 0.5rem; font-weight: bold; }
+        .status.connected { background: #065f46; color: #34d399; }
+        .status.disconnected { background: #991b1b; color: #f87171; }
+        .log-container { background: #0f172a; padding: 1rem; border-radius: 0.5rem; text-align: left; height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; }
+        .recognition-alert { background: #1e40af; border: 2px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 0.5rem; display: none; }
+        .recognition-alert.active { display: block; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BioGait - Test Step 4</h1>
+        <p>Streaming Webcam -> Backend (WS) avec Anonymisation et Reconnaissance</p>
+
+        <div id="ws-status" class="status disconnected">Déconnecté</div>
+
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+
+        <div id="alert" class="recognition-alert">
+            <h2 id="alert-title">IDENTIFIÉ !</h2>
+            <p id="alert-details"></p>
+        </div>
+
+        <div class="log-container" id="logs">
+            <div>Attente du démarrage...</div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const wsStatus = document.getElementById('ws-status');
+        const logs = document.getElementById('logs');
+        const alertBox = document.getElementById('alert');
+        const alertDetails = document.getElementById('alert-details');
+
+        let ws = null;
+        let streamInterval = null;
+
+        function addLog(msg) {
+            const div = document.createElement('div');
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logs.prepend(div);
+        }
+
+        // Démarrage caméra
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                video.srcObject = stream;
+                addLog('Caméra démarrée.');
+                connectWS();
+            } catch (err) {
+                addLog('Erreur caméra: ' + err.message);
+            }
+        }
+
+        function connectWS() {
+            ws = new WebSocket('ws://localhost:8000/api/v1/recognition/ws/stream/cam_front_door');
+            
+            ws.onopen = () => {
+                wsStatus.textContent = 'Connecté';
+                wsStatus.className = 'status connected';
+                addLog('WebSocket connecté.');
+                startStreaming();
+            };
+
+            ws.onclose = () => {
+                wsStatus.textContent = 'Déconnecté';
+                wsStatus.className = 'status disconnected';
+                addLog('WebSocket déconnecté.');
+                stopStreaming();
+            };
+
+            ws.onerror = (err) => {
+                addLog('Erreur WS');
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.status === 'decision_made') {
+                    showRecognition(data.result);
+                }
+            };
+        }
+
+        function startStreaming() {
+            // Envoyer une frame toutes les 100ms (~10 FPS pour le test)
+            streamInterval = setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ctx.drawImage(video, 0, 0, 640, 480);
+                    const base64 = canvas.toDataURL('image/jpeg', 0.7);
+                    ws.send(base64);
+                }
+            }, 100);
+        }
+
+        function stopStreaming() {
+            if (streamInterval) clearInterval(streamInterval);
+        }
+
+        function showRecognition(result) {
+            addLog(`RECONNAISSANCE: ${result.identified ? 'OUI' : 'NON'} (${Math.round(result.confidence)}%)`);
+            if (result.identified) {
+                alertBox.classList.add('active');
+                alertBox.style.backgroundColor = result.zone_authorized ? '#065f46' : '#991b1b';
+                document.getElementById('alert-title').textContent = result.zone_authorized ? 'ACCÈS AUTORISÉ' : 'ACCÈS REFUSÉ (ZONE)';
+                alertDetails.textContent = `Utilisateur: ${result.user_id} - Score: ${Math.round(result.confidence)}%`;
+                
+                setTimeout(() => { alertBox.classList.remove('active'); }, 5000);
+            }
+        }
+
+        startCamera();
+    </script>
+</body>
+</html>

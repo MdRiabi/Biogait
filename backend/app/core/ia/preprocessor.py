@@ -49,7 +49,19 @@ class CASIABPreprocessor:
                     "  curl -L https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task "
                     f"-o {self._model_path}"
                 )
-            base_options = mp_python.BaseOptions(model_asset_path=str(self._model_path))
+            
+            # --- FIX FOR WINDOWS ACCENTS (e.g., 'Biométrie') ---
+            import tempfile
+            import shutil
+            import os
+            temp_dir = tempfile.gettempdir()
+            safe_model_path = os.path.join(temp_dir, "pose_landmarker_lite_temp.task")
+            
+            # Copie si nécessaire pour éviter les erreurs de lecture C++ de MediaPipe sur les chemins accentués
+            if not os.path.exists(safe_model_path) or os.path.getmtime(safe_model_path) < self._model_path.stat().st_mtime:
+                shutil.copy2(str(self._model_path), safe_model_path)
+            
+            base_options = mp_python.BaseOptions(model_asset_path=safe_model_path)
             options = mp_vision.PoseLandmarkerOptions(
                 base_options=base_options,
                 running_mode=RunningMode.VIDEO,
@@ -60,6 +72,27 @@ class CASIABPreprocessor:
             )
             self._landmarker = mp_vision.PoseLandmarker.create_from_options(options)
         return self._landmarker
+
+    def extract_keypoints_from_frame(self, frame: np.ndarray, timestamp_ms: int) -> Optional[np.ndarray]:
+        """Extrait les keypoints d'une frame unique (utile pour streaming)."""
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+        landmarker = self._get_landmarker()
+        try:
+            result = landmarker.detect_for_video(mp_image, timestamp_ms)
+        except Exception as e:
+            # Si le timestamp n'est pas strictement croissant, on recrée le landmarker
+            print(f"MediaPipe error: {e}, resetting landmarker...")
+            self._landmarker = None
+            landmarker = self._get_landmarker()
+            result = landmarker.detect_for_video(mp_image, timestamp_ms)
+            
+        if result.pose_landmarks:
+            landmarks = []
+            for lm in result.pose_landmarks[0]:
+                landmarks.append([lm.x, lm.y, lm.visibility, lm.presence])
+            return np.array(landmarks)
+        return None
 
     def extract_mediapipe_keypoints(self, video_path: Path) -> List[np.ndarray]:
         """Extrait les keypoints MediaPipe d'une vidéo CASIA-B (nouvelle API Tasks)."""
