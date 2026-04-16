@@ -8,6 +8,9 @@ from app.core.ia.realtime_processor import realtime_manager
 
 router = APIRouter(prefix="/recognition", tags=["Recognition"])
 
+# Stockage global pour les frames mobiles (partagé entre API et Frontend)
+latest_frames = {}
+
 class DashboardConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -77,7 +80,53 @@ async def websocket_stream_endpoint(websocket: WebSocket, camera_id: str):
     except WebSocketDisconnect:
         print(f"[{camera_id}] Déconnexion streaming.")
 
+@router.websocket("/ws/mobile")
+async def websocket_mobile_endpoint(websocket: WebSocket):
+    """Endpoint spécifique pour recevoir les frames via JSON de la caméra mobile."""
+    await websocket.accept()
+    print("[Mobile] Connexion caméra nomade acceptée.")
+    try:
+        while True:
+            import json
+            data_str = await websocket.receive_text()
+            data = json.loads(data_str)
+            camera_id = data.get("camera_id", "mobile_cam")
+            image_data = data.get("image")
+            
+            if image_data and image_data.startswith('data:image'):
+                base64_data = image_data.split(',')[1]
+                img_bytes = base64.b64decode(base64_data)
+                np_arr = np.frombuffer(img_bytes, np.uint8)
+                frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+                
+                if frame is not None:
+                    # Traitement IA
+                    info = realtime_manager.process_frame(camera_id, frame)
+                    if info.get("recognition"):
+                        rec = info["recognition"]
+                        alert_msg = {
+                            "type": "alert",
+                            "camera_id": camera_id,
+                            "timestamp": int(asyncio.get_event_loop().time()),
+                            "recognition_result": rec
+                        }
+                        asyncio.create_task(dashboard_manager.broadcast_alert(alert_msg))
+                    
+                    # Diffusion de l'image (pour l'aperçu "Live")
+                    global latest_frames
+                    latest_frames[camera_id] = image_data # On stocke le base64
+                    
+                    frame_msg = {
+                        "type": "frame",
+                        "camera_id": camera_id,
+                        "image": image_data
+                    }
+                    asyncio.create_task(dashboard_manager.broadcast_alert(frame_msg))
+    except WebSocketDisconnect:
+        print("[Mobile] Déconnexion caméra nomade.")
+
 @router.websocket("/ws/dashboard/alerts")
+
 async def websocket_dashboard_endpoint(websocket: WebSocket):
     """
     Connexion pour les clients Dashboard voulant voir les alertes en direct.

@@ -5,6 +5,7 @@ from frontend.pages.monitoring import monitoring_page
 from frontend.pages.statistics import statistics_page
 from frontend.pages.management import management_page
 from frontend.pages.alerts import alerts_page
+from frontend.pages.mobile_cam import mobile_cam_page
 
 def init_frontend():
     """Initialise l'ensemble de l'interface BioGait."""
@@ -17,5 +18,6 @@ def init_frontend():
     statistics_page()      # URL: /stats
     management_page()      # URL: /users
     alerts_page()          # URL: /alerts
+    mobile_cam_page()      # URL: /mobile-cam
     
     print("Interface BioGait initialisee.")
