@@ -3,7 +3,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from jose import jwt
 from app.config import get_settings
-from app.db.session import async_session_factory
+from app.db.session import SessionLocal
 from app.models.audit import AuditLog
 import time
 
@@ -34,7 +34,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             details=f"duration:{time.time()-start_time:.3f}s"
         )
         
-        async with async_session_factory() as session:
+        async with SessionLocal() as session:
             session.add(log_entry)
             try:
                 await session.commit()

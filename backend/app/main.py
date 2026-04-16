@@ -15,6 +15,12 @@ from starlette.middleware.cors import CORSMiddleware
 import logging
 from app.api.v1.enrollment import router as enrollment_router
 from app.api.v1.recognition import router as recognition_router
+import sys
+from nicegui import ui
+
+# Ajout du dossier racine au path pour trouver le module 'frontend'
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
+from frontend.main import init_frontend
 logging.basicConfig(level=logging.INFO)
 settings = get_settings()
 
@@ -44,18 +50,18 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(enrollment_router, prefix="/api/v1")
 app.include_router(recognition_router, prefix="/api/v1")
 
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    return """
-    <html>
-        <head><title>BioGait API</title></head>
-        <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
-            <h1>Identification BioGait active ✅</h1>
-            <p>L'API est en ligne. Accédez à la <a href="/docs">Documentation Swagger</a>.</p>
-            <p>Pour tester la reconnaissance en direct : <a href="/test-cam">Lancer le test Webcam</a></p>
-        </body>
-    </html>
-    """
+# Initialisation du Dashboard NiceGUI (Étape 5)
+init_frontend()
+
+# Montage de NiceGUI sur FastAPI (Définit les routes / et /login par défaut)
+ui.run_with(
+    app,
+    storage_secret="biogait_secret_session_key_123", # À changer en prod
+    title="BioGait Admin Dashboard",
+    dark=True
+)
+
+@app.get("/health")
 
 @app.get("/test-cam")
 async def test_cam():

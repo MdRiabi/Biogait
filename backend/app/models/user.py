@@ -21,3 +21,4 @@ class User(Base):
     gait_iv = Column(LargeBinary, nullable=True)           # Nonce pour déchiffrement AES-GCM
     gait_template = Column(LargeBinary, nullable=True)     # Vecteur 128D chiffré
     is_enrolled = Column(Boolean, default=False)           # Flag d'état d'enrôlement
+    is_approved = Column(Boolean, default=False)           # Approbation Admin requis
