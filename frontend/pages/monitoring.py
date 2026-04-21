@@ -3,7 +3,7 @@ from frontend.theme import THEME, cyber_card
 from frontend.components.sidebar import sidebar
 from frontend.auth import check_auth
 from frontend.components.qr_generator import mobile_qr_component
-from app.api.v1.recognition import latest_frames
+from app.core.state import latest_frames
 import asyncio
 import json
 
@@ -11,12 +11,20 @@ class MonitoringPage:
     def __init__(self):
         self.events = []
         self.event_container = None
+        self.confidence_threshold = 0.50 # Seuil rabaissé à 50% pour garantir l'affichage des premières alertes
 
     def handle_socket_msg(self, data: dict):
         """Répartit les messages selon leur type (alerte ou image)."""
         msg_type = data.get('type')
         if msg_type == 'alert':
-            self.add_event(data)
+            # Filtrer par le seuil de confiance
+            conf = data.get('recognition_result', {}).get('confidence', 0) / 100.0
+            if conf >= self.confidence_threshold:
+                self.add_event(data)
+                # Notification visuelle (Toast)
+                person = data.get('recognition_result', {}).get('user_id', 'Inconnu')
+                status = "IDENTIFIÉ ✅" if data.get('recognition_result', {}).get('identified') else "INCONNU ⚠️"
+                ui.notify(f"{status}: {person} ({conf*100:.1f}%)", position='top-right', type='positive' if data.get('recognition_result', {}).get('identified') else 'warning')
         elif msg_type == 'frame':
             # Mise à jour de l'image du flux live
             self.video_placeholder.set_source(data.get('image'))
@@ -87,12 +95,24 @@ class MonitoringPage:
                 
                 # Ajout du QR Code pour la caméra mobile
                 mobile_qr_component()
+                
+                # --- RÉGLAGES DE SÉCURITÉ ---
+                with cyber_card().classes('w-full mt-4'):
+                    ui.label('PARAMÈTRES SÉCURITÉ').classes('text-xs font-bold mb-2 text-primary')
+                    ui.label(f'Seuil de confiance').classes('text-[10px] text-muted')
+                    threshold_label = ui.label(f'{int(self.confidence_threshold*100)}%').classes('text-xs font-bold')
+                    
+                    def update_threshold(e):
+                        self.confidence_threshold = e.value / 100.0
+                        threshold_label.set_text(f'{e.value}%')
+                        
+                    ui.slider(min=50, max=99, value=int(self.confidence_threshold*100), on_change=update_threshold).classes('w-full')
+                    ui.label('Mode RGPD: ACTIF').classes('text-[8px] text-success italic mt-1')
 
         # Boucle de rafraîchissement vidéo (Polling stable)
         ui.timer(0.5, self.update_live_feed)
         
-        # Démarrage de la boucle initiale
-        ui.timer(2.0, lambda: self.fake_event(), once=True)
+        # Le rafraîchissement des événements est géré par les événements JS/WebSocket
 
     def update_live_feed(self):
         """Récupère la dernière image reçue depuis le stockage global."""

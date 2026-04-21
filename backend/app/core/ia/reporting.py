@@ -26,17 +26,17 @@ def generate_report(logs, output_path):
     elements.append(Spacer(1, 20))
 
     # Tableau de données
-    data = [["HEURE", "ACTION", "RESSOURCE", "CODE", "DÉTAILS"]]
+    data = [["HEURE", "CAMÉRA", "SUJET", "STATUT", "CONFIANCE"]]
     for log in logs:
         data.append([
-            log.get("timestamp"),
-            log.get("action"),
-            log.get("resource"),
-            str(log.get("status")),
-            log.get("details")[:30] + "..." if len(log.get("details", "")) > 30 else log.get("details")
+            log.get("timestamp") or "N/A",
+            log.get("camera_id") or "Mobile",
+            log.get("username") or "Inconnu",
+            log.get("status") or "DÉTECTÉ",
+            log.get("confidence") or "0%"
         ])
 
-    table = Table(data, colWidths=[60, 80, 100, 40, 180])
+    table = Table(data, colWidths=[60, 80, 100, 80, 60])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#111827")),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#00F0FF")),

@@ -52,19 +52,6 @@ def logout() -> None:
     app.storage.user.update({'authenticated': False})
     ui.navigate.to(login_path)
 
-def login_page():
-    @ui.page(login_path)
-    def login_screen():
-        with ui.column().classes('absolute-center items-center p-8 card-cyber'):
-            ui.label('BIOGAIT ADMIN').classes('text-3xl font-bold mb-4').style('color: #00F0FF')
-            username = ui.input('Nom d\'utilisateur').classes('w-64')
-            password = ui.input('Mot de passe', password=True).classes('w-64').on('keydown.enter', lambda: login(username, password))
-            ui.button('Connexion', on_click=lambda: login(username, password)).classes('w-full mt-4').style('background-color: #00F0FF; color: black')
-            
-            with ui.row().classes('mt-4 text-sm'):
-                ui.label('Pas de compte ?')
-                ui.link('S\'inscrire ici', register_path).style('color: #00F0FF')
-
 async def register_user(username_input, password_input, confirm_input) -> None:
     """Crée un nouvel utilisateur en attente d'approbation."""
     username = username_input.value

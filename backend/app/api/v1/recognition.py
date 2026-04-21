@@ -1,15 +1,18 @@
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from app.core.ia.realtime_processor import realtime_manager
+from app.core.ia.anonymizer import VideoAnonymizer
+from app.models.alert import DetectionAlert
+from app.db.session import SessionLocal
+import json
+import logging
 import base64
 import cv2
 import numpy as np
 import asyncio
 from typing import List
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from app.core.ia.realtime_processor import realtime_manager
+from app.core.state import latest_frames
 
 router = APIRouter(prefix="/recognition", tags=["Recognition"])
-
-# Stockage global pour les frames mobiles (partagé entre API et Frontend)
-latest_frames = {}
 
 class DashboardConnectionManager:
     def __init__(self):
@@ -100,8 +103,20 @@ async def websocket_mobile_endpoint(websocket: WebSocket):
                 frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
                 
                 if frame is not None:
-                    # Traitement IA
+                    # 1. Anonymisation (RGPD)
+                    anonymizer = VideoAnonymizer()
+                    frame = anonymizer.blur_faces(frame)
+                    
+                    # 2. Conversion en Base64 après floutage pour l'affichage dashboard
+                    _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                    anonymized_b64 = base64.b64encode(buffer).decode()
+                    
+                    # 3. Traitement IA (Reconnaissance réelle)
                     info = realtime_manager.process_frame(camera_id, frame)
+                    
+                    if info.get("processed"):
+                         print(f"[ENGINE] Image reçue pour {camera_id} - IA Active")
+
                     if info.get("recognition"):
                         rec = info["recognition"]
                         alert_msg = {
@@ -110,16 +125,27 @@ async def websocket_mobile_endpoint(websocket: WebSocket):
                             "timestamp": int(asyncio.get_event_loop().time()),
                             "recognition_result": rec
                         }
+                        # Sauvegarde en base de données
+                        async with SessionLocal() as db:
+                            new_alert = DetectionAlert(
+                                camera_id=camera_id,
+                                identified=rec.get("identified", False),
+                                username=rec.get("user_id"),
+                                confidence=rec.get("confidence", 0.0) / 100.0,
+                                anonymized_image=anonymized_b64
+                            )
+                            db.add(new_alert)
+                            await db.commit()
+                            
                         asyncio.create_task(dashboard_manager.broadcast_alert(alert_msg))
                     
-                    # Diffusion de l'image (pour l'aperçu "Live")
-                    global latest_frames
-                    latest_frames[camera_id] = image_data # On stocke le base64
+                    # 4. Diffusion de l'image ANONYMISÉE au dashboard
+                    latest_frames[camera_id] = f"data:image/jpeg;base64,{anonymized_b64}"
                     
                     frame_msg = {
                         "type": "frame",
                         "camera_id": camera_id,
-                        "image": image_data
+                        "image": latest_frames[camera_id]
                     }
                     asyncio.create_task(dashboard_manager.broadcast_alert(frame_msg))
     except WebSocketDisconnect:

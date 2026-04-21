@@ -1,5 +1,4 @@
 from nicegui import ui
-from frontend.theme import apply_theme
 from frontend.auth import login_register_pages
 from frontend.pages.monitoring import monitoring_page
 from frontend.pages.statistics import statistics_page
@@ -9,9 +8,6 @@ from frontend.pages.mobile_cam import mobile_cam_page
 
 def init_frontend():
     """Initialise l'ensemble de l'interface BioGait."""
-    # Appliquer le thème global (CSS/Tailwind)
-    apply_theme()
-    
     # Enregistrement des pages
     login_register_pages()
     monitoring_page()      # URL: /

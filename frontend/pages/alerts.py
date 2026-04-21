@@ -3,9 +3,11 @@ from frontend.theme import THEME, cyber_card
 from frontend.components.sidebar import sidebar
 from frontend.auth import check_auth
 from app.db.session import SessionLocal
+from app.models.alert import DetectionAlert
 from app.models.audit import AuditLog
 from sqlalchemy.future import select
 from sqlalchemy import desc
+from datetime import datetime
 from app.core.ia.reporting import generate_report
 import os
 import tempfile
@@ -13,19 +15,19 @@ from nicegui import app
 
 class AlertsPage:
     async def get_alerts(self):
-        """Récupère les logs d'audit depuis la base de données."""
+        """Récupère les alertes de détection réelles de la DB."""
         async with SessionLocal() as db:
-            result = await db.execute(select(AuditLog).order_by(desc(AuditLog.timestamp)).limit(100))
-            logs = result.scalars().all()
+            result = await db.execute(select(DetectionAlert).order_by(desc(DetectionAlert.timestamp)).limit(50))
+            alerts = result.scalars().all()
             return [
                 {
-                    "timestamp": l.timestamp.strftime("%H:%M:%S"),
-                    "action": l.action,
-                    "resource": l.resource,
-                    "status": l.status_code,
-                    "details": l.details
-                }
-                for l in logs
+                    "timestamp": a.timestamp.strftime("%H:%M:%S") if a.timestamp else "N/A",
+                    "camera_id": a.camera_id,
+                    "username": a.username or "Inconnu",
+                    "status": "DÉTECTÉ" if a.identified else "INCONNU",
+                    "confidence": f"{a.confidence*100:.1f}%" if a.confidence else "0%",
+                    "anomalie": "OUI" if a.is_anomaly else "NON"
+                } for a in alerts
             ]
 
     async def content(self):
@@ -41,13 +43,20 @@ class AlertsPage:
         with cyber_card().classes('w-full'):
             rows = await self.get_alerts()
             columns = [
-                {'name': 'timestamp', 'label': 'Heure', 'field': 'timestamp', 'align': 'left'},
-                {'name': 'action', 'label': 'Action', 'field': 'action', 'align': 'left'},
-                {'name': 'resource', 'label': 'Route', 'field': 'resource'},
-                {'name': 'status', 'label': 'Code', 'field': 'status', 'align': 'center'},
-                {'name': 'details', 'label': 'Détails', 'field': 'details', 'align': 'left'},
+                {'name': 'timestamp', 'label': 'HEURE', 'field': 'timestamp', 'align': 'left'},
+                {'name': 'camera_id', 'label': 'CAMÉRA', 'field': 'camera_id', 'align': 'left'},
+                {'name': 'username', 'label': 'SUJET', 'field': 'username', 'align': 'left'},
+                {'name': 'status', 'label': 'STATUT', 'field': 'status', 'align': 'center'},
+                {'name': 'confidence', 'label': 'CONFIANCE', 'field': 'confidence', 'align': 'center'},
+                {'name': 'anomalie', 'label': 'ANOMALIE', 'field': 'anomalie', 'align': 'center'},
             ]
-            ui.table(columns=columns, rows=rows, row_key='timestamp').classes('w-full bg-transparent text-white')
+            table = ui.table(columns=columns, rows=rows, row_key='timestamp').classes('w-full bg-transparent text-white')
+
+            async def refresh():
+                table.rows = await self.get_alerts()
+            
+            # Rafraîchissement automatique toutes les 2 secondes
+            ui.timer(2.0, refresh)
 
     async def export_pdf(self):
         """Déclenche la génération et le téléchargement du PDF."""

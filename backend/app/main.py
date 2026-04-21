@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, FileResponse
 import os
@@ -26,10 +27,38 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 1. Initialisation de la base de données (SQLite automatique)
+    from app.db.base import Base
+    from app.db.session import engine, SessionLocal
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logging.info("✅ Database initialized & tables created.")
+    logging.info("✅ Database initialized (SQLite).")
+    
+    # 2. Bootstrap Admin (Création du premier compte si vide)
+    from app.models.user import User, UserRole
+    from app.core.security import hash_password
+    from sqlalchemy.future import select
+    
+    async with SessionLocal() as db:
+        result = await db.execute(select(User).limit(1))
+        if not result.scalar_one_or_none():
+            admin_user = User(
+                username="admin",
+                hashed_password=hash_password("admin123"),
+                role=UserRole.ADMIN,
+                is_approved=True
+            )
+            db.add(admin_user)
+            await db.commit()
+            logging.info("🚀 Default admin created (admin / admin123).")
+
+    # 3. Synchronisation du moteur IA au démarrage
+    from app.core.ia.realtime_processor import realtime_manager
+    asyncio.create_task(realtime_manager.pipeline.synchronize_with_db())
+    
     yield
+    
+    # Nettoyage
     await engine.dispose()
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)

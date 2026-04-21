@@ -14,6 +14,7 @@ class GaitRecognitionPipeline:
         self.preprocessor = CASIABPreprocessor()
         self.threshold_normal = threshold_normal
         self.threshold_secure = threshold_secure
+        self.db_engine = None # Sera injecté au démarrage
     
     def enroll_user(self, user_id: str, video_paths: List[Path], frame_shapes: List[Tuple[int, int]]) -> Dict:
         """Enrôle un utilisateur à partir de multiples séquences vidéo."""
@@ -143,3 +144,31 @@ class GaitRecognitionPipeline:
             "frr_denominator": frr_denominator,
             "accuracy": 1 - (far + frr) / 2
         }
+
+    async def synchronize_with_db(self):
+        """Charge tous les profils enrôlés depuis la DB vers l'index FAISS."""
+        from app.db.session import SessionLocal
+        from app.models.user import User
+        from sqlalchemy.future import select
+        import logging
+
+        logging.info("🔄 Synchronisation FAISS avec la base de données...")
+        self.index.reset() # On vide l'index pour repartir sur une base propre
+        
+        async with SessionLocal() as db:
+            result = await db.execute(select(User).where(User.is_enrolled == True))
+            users = result.scalars().all()
+            
+            count = 0
+            for user in users:
+                if user.gait_template:
+                    vector = np.frombuffer(user.gait_template, dtype='float32')
+                    # S'assurer que le vecteur est 128D et normalisé
+                    if vector.shape[0] == 128:
+                        self.index.add_vectors(
+                            vectors=np.array([vector]),
+                            user_ids=[user.username],
+                            metadata_list=[{"role": user.role, "zone_permissions": ["normal"]}]
+                        )
+                        count += 1
+            logging.info(f"✅ Synchronisation terminée : {count} profils chargés dans l'index.")

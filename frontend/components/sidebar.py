@@ -1,9 +1,10 @@
 from nicegui import ui
-from frontend.theme import THEME
+from frontend.theme import THEME, apply_theme
 from frontend.auth import logout
 
 def sidebar():
     """Crée la barre latérale de navigation."""
+    apply_theme()
     with ui.left_drawer(value=True).classes('w-64') as drawer:
         with ui.column().classes('w-full items-center p-4'):
             ui.icon('radar', size='56px').style(f'color: {THEME["primary"]}')

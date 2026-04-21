@@ -24,6 +24,11 @@ class GaitFaissIndex:
             self.index = faiss.IndexFlatL2(self.dimension)
         else:
             raise ValueError(f"Metric {self.metric} not supported")
+
+    def reset(self):
+        """Vide l'index et les métadonnées."""
+        self._init_index()
+        self.metadata = {}
     
     def add_vectors(self, vectors: np.ndarray, user_ids: List[str], metadata_list: List[dict]):
         """Ajoute des vecteurs à l'index avec métadonnées."""
