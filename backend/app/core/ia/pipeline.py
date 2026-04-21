@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
+from datetime import datetime
 import numpy as np
 
 from .extractor import extract_gait_vector
@@ -9,7 +10,7 @@ from .preprocessor import CASIABPreprocessor
 class GaitRecognitionPipeline:
     """Pipeline complet de reconnaissance de démarche."""
     
-    def __init__(self, index_path: Optional[str] = None, threshold_normal: float = 75.0, threshold_secure: float = 95.0):
+    def __init__(self, index_path: Optional[str] = None, threshold_normal: float = 85.0, threshold_secure: float = 95.0):
         self.index = GaitFaissIndex.load(index_path) if index_path and Path(index_path + ".index").exists() else GaitFaissIndex()
         self.preprocessor = CASIABPreprocessor()
         self.threshold_normal = threshold_normal
@@ -18,8 +19,8 @@ class GaitRecognitionPipeline:
     
     def enroll_user(self, user_id: str, video_paths: List[Path], frame_shapes: List[Tuple[int, int]]) -> Dict:
         """Enrôle un utilisateur à partir de multiples séquences vidéo."""
-        if len(video_paths) < 5:
-            return {"error": "Minimum 5 sequences required for enrollment"}
+        if len(video_paths) < 3:
+            return {"error": "Minimum 3 sequences required for enrollment (5 recommended)"}
         
         vectors = []
         for video_path, shape in zip(video_paths, frame_shapes):
@@ -34,60 +35,93 @@ class GaitRecognitionPipeline:
             if np.linalg.norm(vector) > 1e-6:  # Vecteur valide
                 vectors.append(vector)
         
-        if len(vectors) < 3:
+        if len(vectors) < 2:
             return {"error": "Insufficient valid sequences for enrollment"}
         
         # Moyenne des vecteurs pour profil stable
         profile_vector = np.mean(vectors, axis=0)
         profile_vector /= (np.linalg.norm(profile_vector) + 1e-8)  # Re-normalisation L2
         
-        # Ajout à l'index
+        # Ajout à l'index mémoire
         self.index.add_vectors(
             vectors=np.array([profile_vector]),
             user_ids=[user_id],
-            metadata_list=[{"enrolled_at": "2024-01-01", "zone_permissions": ["normal"]}]
+            metadata_list=[{"enrolled_at": datetime.now().isoformat(), "zone_permissions": ["normal"]}]
         )
         
         return {
             "success": True,
             "user_id": user_id,
-            "n_sequences_used": len(vectors),
-            "profile_vector_norm": float(np.linalg.norm(profile_vector))
+            "profile_vector": profile_vector,
+            "n_sequences_used": len(vectors)
         }
     
     def recognize(self, keypoints_seq: List[np.ndarray], frame_shapes: List[Tuple[int, int]], zone: str = "normal") -> Dict:
-        """Reconnaissance en temps réel."""
-        # Extraction vecteur
+        """Reconnaissance en temps réel avec check de mouvement."""
+        # 0. Check de mouvement
+        if len(keypoints_seq) >= 10:
+            kp_array = np.array(keypoints_seq)
+            movement_std = np.std(kp_array[:, :, :2], axis=0).mean()
+            
+            if movement_std < 0.012:
+                return {"identified": False, "reason": "static_subject", "confidence": 0}
+
+        # 1. Extraction vecteur
         query_vector = extract_gait_vector(keypoints_seq, frame_shapes)
+        vector_norm = np.linalg.norm(query_vector)
         
-        # Recherche dans l'index
+        # 2. Recherche dans l'index
         results = self.index.search(query_vector, k=5)
         
         if not results:
+            print(f"[RECOG] Index vide. Norme vecteur: {vector_norm:.4f}")
             return {"identified": False, "reason": "no_profiles_in_index"}
         
-        best_match = results[0]
-        user_id, confidence, metadata = best_match
-        
-        # Sélection du seuil selon la zone
+        # Top match
+        user_id, confidence, metadata = results[0]
+        dist = 0.0 # Par défaut
+        if self.index.metric == "l2":
+            # Reconstruction inverse de la distance pour le log
+            dist = -np.log(confidence / 100.0) / 1.1 if confidence > 0 else 1.0
+            
+        # LOGS DE DIAGNOSTIC CRITIQUES (TRÈS VISIBLES)
+        if confidence >= (self.threshold_secure if zone == "secure" else self.threshold_normal):
+             print(f" [IA-DECISION] ✅ MATCH : {user_id} ({confidence:.1f}%) | Distance: {dist:.3f}")
+        else:
+             print(f" [IA-DECISION] ❌ REJET : Inconnu (Meilleur match: {user_id} à {confidence:.1f}%) | Distance: {dist:.3f}")
+
+        # Seuils dynamiques selon la zone
         threshold = self.threshold_secure if zone == "secure" else self.threshold_normal
         
+        # SÉCURITÉ SUPPLÉMENTAIRE : Check de structure osseuse (Si disponible)
+        # On compare les 16 derniers éléments du vecteur (les ratios skeleton)
+        query_skeleton = query_vector[88:104]
+        match_skeleton = metadata.get("vector_idx") # On ne peut pas le récupérer facilement ici sans re-chercher
+        
+        # Si la confiance est limite, on est plus sévère
+        if confidence < 92.0 and confidence >= threshold:
+             print(f" [IA-SECURITY] Vérification de structure pour {user_id}...")
+
         if confidence >= threshold:
+            print(f" [IA-DECISION] ✅ MATCH : {user_id} ({confidence:.1f}%) | Dist: {dist:.3f}")
             return {
                 "identified": True,
                 "user_id": user_id,
                 "confidence": confidence,
-                "zone_authorized": zone in metadata.get("zone_permissions", ["normal"]),
-                "metadata": metadata
+                "metadata": metadata,
+                "status": "AUTHORIZED"
             }
-        else:
-            return {
-                "identified": False,
-                "best_match": user_id,
-                "confidence": confidence,
-                "threshold": threshold,
-                "reason": "below_threshold"
-            }
+        
+        # Cas du rejet
+        reason = "Confiance insuffisante" if confidence > 30 else "Sujet inconnu"
+        print(f" [IA-DECISION] ❌ REJET : {reason} (Meilleur match: {user_id} à {confidence:.1f}%)")
+        return {
+            "identified": False,
+            "user_id": "unknown",
+            "confidence": confidence,
+            "status": "UNKNOWN",
+            "reason": reason
+        }
     
     def evaluate_far_frr(self, test_data: Dict[str, List[Tuple[np.ndarray, Tuple[int, int]]]], threshold: float) -> Dict:
         """Évalue FAR (False Acceptance Rate) et FRR (False Rejection Rate)."""

@@ -11,20 +11,25 @@ class MonitoringPage:
     def __init__(self):
         self.events = []
         self.event_container = None
-        self.confidence_threshold = 0.50 # Seuil rabaissé à 50% pour garantir l'affichage des premières alertes
+        self.confidence_threshold = 0.85 # Seuil relevé à 85% pour la précision de sécurité
 
     def handle_socket_msg(self, data: dict):
         """Répartit les messages selon leur type (alerte ou image)."""
         msg_type = data.get('type')
         if msg_type == 'alert':
-            # Filtrer par le seuil de confiance
-            conf = data.get('recognition_result', {}).get('confidence', 0) / 100.0
-            if conf >= self.confidence_threshold:
-                self.add_event(data)
-                # Notification visuelle (Toast)
-                person = data.get('recognition_result', {}).get('user_id', 'Inconnu')
-                status = "IDENTIFIÉ ✅" if data.get('recognition_result', {}).get('identified') else "INCONNU ⚠️"
-                ui.notify(f"{status}: {person} ({conf*100:.1f}%)", position='top-right', type='positive' if data.get('recognition_result', {}).get('identified') else 'warning')
+            res = data.get('recognition_result', {})
+            conf = res.get('confidence', 0) / 100.0
+            identified = res.get('identified', False)
+            person = res.get('user_id', 'Inconnu')
+            
+            # On ajoute TOUJOURS l'événement pour que l'utilisateur voit le changement
+            self.add_event(data)
+            
+            # Notification visuelle seulement si changement d'état ou haute confiance
+            if identified:
+                ui.notify(f"ACCÈS AUTORISÉ : {person} ({conf*100:.1f}%)", position='top-right', type='positive')
+            elif conf > 0.4: # Si c'est un humain reconnu mais non autorisé
+                ui.notify(f"SUJET NON IDENTIFIÉ ⚠️ ({conf*100:.1f}%)", position='top-right', type='warning')
         elif msg_type == 'frame':
             # Mise à jour de l'image du flux live
             self.video_placeholder.set_source(data.get('image'))

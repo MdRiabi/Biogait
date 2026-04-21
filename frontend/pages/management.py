@@ -12,6 +12,8 @@ import os
 from datetime import datetime
 import time
 import asyncio
+import cv2
+from pathlib import Path
 
 class ManagementPage:
     def __init__(self):
@@ -192,34 +194,53 @@ class ManagementPage:
         if not username:
             ui.notify("Veuillez saisir un nom d'utilisateur !", type='warning')
             return
-        if len(self.enrolled_video_paths) == 0:
-            ui.notify("Veuillez uploader au moins une vidéo !", type='warning')
+        if len(self.enrolled_video_paths) < 3:
+            ui.notify("Veuillez uploader au moins 3 vidéos !", type='warning')
             return
             
-        ui.notify(f"Démarrage de l'analyse IA pour {username}...", type='info')
+        ui.notify(f"Démarrage de l'analyse multi-vidéo pour {username}...", type='info')
         
         try:
-            # 1. Traitement de la première vidéo (pour la démo)
-            tmp_path = self.enrolled_video_paths[0]
+            # 1. Préparation des données pour le pipeline d'enrôlement
+            from app.core.ia.realtime_processor import realtime_manager
             
-            processor = VideoProcessor()
-            # On exécute le traitement lourd dans un thread pour ne pas bloquer l'UI
-            vector = await asyncio.to_thread(processor.process_video_file, tmp_path)
+            video_paths = []
+            frame_shapes = []
             
-            # 2. Mise à jour de l'utilisateur (ou création)
+            for p in self.enrolled_video_paths:
+                # Capture des dimensions de chaque vidéo
+                cap = cv2.VideoCapture(p)
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                cap.release()
+                
+                video_paths.append(Path(p))
+                frame_shapes.append((h, w))
+            
+            # 2. Appel au moteur d'enrôlement robuste (Multi-séquences)
+            # On exécute dans un thread pour ne pas geler l'UI
+            res = await asyncio.to_thread(realtime_manager.pipeline.enroll_user, username, video_paths, frame_shapes)
+            
+            if "error" in res:
+                ui.notify(f"Échec Enrôlement : {res['error']}", type='negative')
+                return
+
+            profile_vector = res.get("profile_vector")
+
+            # 3. Sauvegarde en Base de Données
             async with SessionLocal() as db:
                 result = await db.execute(select(User).where(User.username == username))
                 user = result.scalar_one_or_none()
                 
                 if user:
-                    user.gait_template = vector.astype('float32').tobytes()
+                    user.gait_template = profile_vector.astype('float32').tobytes()
                     user.is_enrolled = True
                     await db.commit()
-                    ui.notify(f"Profil biométrique de {username} mis à jour !", type='positive')
+                    ui.notify(f"PROFIL BLINDÉ : {username} identifié avec succès !", type='positive')
                 else:
-                    ui.notify("Utilisateur inexistant. Créez le d'abord ou inscrivez-vous.", type='negative')
+                    ui.notify("Utilisateur inexistant dans la DB.", type='negative')
             
-            # Nettoyage de TOUS les fichiers temporaires
+            # Nettoyage
             for p in self.enrolled_video_paths:
                 if os.path.exists(p):
                     os.remove(p)
@@ -227,11 +248,9 @@ class ManagementPage:
             
             await self.refresh_table()
             
-            # Mise à jour immédiate du moteur de reconnaissance (IA)
-            from app.core.ia.realtime_processor import realtime_manager
-            asyncio.create_task(realtime_manager.pipeline.synchronize_with_db())
-            
-            ui.notify("Moteur IA synchronisé avec le nouveau profil.", type='info')
+            # Synchronisation immédiate
+            await realtime_manager.pipeline.synchronize_with_db()
+            ui.notify("Moteur IA synchronisé. Sécurité active.", type='info')
             dialog.close()
             
         except Exception as e:

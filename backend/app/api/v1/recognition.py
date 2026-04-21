@@ -125,14 +125,21 @@ async def websocket_mobile_endpoint(websocket: WebSocket):
                             "timestamp": int(asyncio.get_event_loop().time()),
                             "recognition_result": rec
                         }
-                        # Sauvegarde en base de données
+                        
+                        # LOGIQUE DE SAUVEGARDE DB (Identifiés ET Inconnus)
                         async with SessionLocal() as db:
+                            # Si non identifié, on met INCONNU
+                            display_name = rec.get("user_id") if rec.get("identified") else "INCONNU"
+                            if not rec.get("identified"):
+                                print(f"[ENGINE] ⚠️ Sujet REJETÉ sur {camera_id}. Enregistrement en base.")
+                            
                             new_alert = DetectionAlert(
                                 camera_id=camera_id,
                                 identified=rec.get("identified", False),
-                                username=rec.get("user_id"),
+                                username=display_name,
                                 confidence=rec.get("confidence", 0.0) / 100.0,
-                                anonymized_image=anonymized_b64
+                                anonymized_image=anonymized_b64,
+                                is_anomaly=not rec.get("identified") # Un inconnu est une anomalie
                             )
                             db.add(new_alert)
                             await db.commit()

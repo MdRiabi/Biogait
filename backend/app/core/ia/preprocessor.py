@@ -95,7 +95,10 @@ class CASIABPreprocessor:
         return None
 
     def extract_mediapipe_keypoints(self, video_path: Path) -> List[np.ndarray]:
-        """Extrait les keypoints MediaPipe d'une vidéo CASIA-B (nouvelle API Tasks)."""
+        """Extrait les keypoints MediaPipe d'une vidéo CASIA-B."""
+        # --- RESET LANDMARKER POUR CHAQUE VIDÉO (Évite l'erreur de timestamp) ---
+        self._landmarker = None
+        
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
             raise IOError(f"Cannot open video: {video_path}")

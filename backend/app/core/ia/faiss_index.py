@@ -75,8 +75,10 @@ class GaitFaissIndex:
             # Conversion distance → score de confiance [0-100]
             if self.metric == "l2":
                 # L2 distance: 0 = identique, plus grand = plus différent
-                # Normalisation heuristique: score = 100 * exp(-distance/2)
-                confidence = 100.0 * np.exp(-dist / 2.0)
+                # Nouvelle formule plus stricte : décroissance rapide
+                # Un dist de 0.2 (très proche) donne ~82%
+                # Un dist de 0.5 (moyen) donne ~60%
+                confidence = 100.0 * np.exp(-dist * 1.1)
             else:  # cosine via L2-normalized
                 # distance cosine ≈ 2(1-cos_sim) → cos_sim = 1 - dist/2
                 cos_sim = 1.0 - dist / 2.0

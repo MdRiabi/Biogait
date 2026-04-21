@@ -66,6 +66,36 @@ def compute_joint_angles(keypoints: np.ndarray) -> np.ndarray:
     
     return np.array(angles + [0] * 12)[:12]  # Pad to 12
 
+def compute_skeleton_ratios(keypoints: np.ndarray, frame_shape: Tuple[int, int]) -> np.ndarray:
+    """Calcule les proportions physiques en pixels réels (Anthropométrie)."""
+    h, w = frame_shape
+    # Conversion en pixels réels pour conserver l'aspect ratio
+    kp_pixel = keypoints[:, :2] * np.array([w, h])
+    
+    ratios = []
+    
+    def dist_px(i, j):
+        return np.linalg.norm(kp_pixel[i] - kp_pixel[j]) + 1e-8
+
+    # 1. Ratio Carrure (Épaules / Hanches)
+    shoulder_w = dist_px(11, 12)
+    hip_w = dist_px(23, 24)
+    ratios.append(shoulder_w / hip_w)
+    
+    # 2. Proportion des Jambes (Jambes / Torse)
+    torso_h = dist_px(11, 23) # Distance épaule-hanche gauche
+    leg_l = (dist_px(23, 25) + dist_px(25, 27)) # Hanche-Genou-Cheville
+    ratios.append(leg_l / torso_h)
+    
+    # 3. Ratio Allonge (Bras / Torse)
+    arm_l = (dist_px(11, 13) + dist_px(13, 15))
+    ratios.append(arm_l / torso_h)
+    
+    # 4. Indice de taille relative (Hanches / Pieds)
+    ratios.append(dist_px(23, 24) / dist_px(27, 28))
+    
+    return np.array(ratios + [0] * 16)[:16]
+
 def compute_temporal_features(sequences: List[np.ndarray]) -> np.ndarray:
     """Calcule features temporelles sur une séquence de 30 frames."""
     if len(sequences) < 2:
@@ -73,44 +103,21 @@ def compute_temporal_features(sequences: List[np.ndarray]) -> np.ndarray:
     
     features = []
     
-    # Vitesse moyenne des keypoints (déplacement/frame)
+    # Vitesse moyenne des keypoints
     velocities = np.diff(sequences, axis=0)
     avg_velocity = np.mean(np.linalg.norm(velocities[:, :, :2], axis=2), axis=0)
-    features.extend(avg_velocity[:8])  # 8 features
+    features.extend(avg_velocity[:8])
     
-    # Rythme de marche (fréquence dominante via FFT simplifiée)
-    hip_motion = np.array([seq[[23, 24], 1].mean() for seq in sequences])  # Y des hanches
+    # Rythme (Hips Y oscillation)
+    hip_motion = np.array([seq[[23, 24], 1].mean() for seq in sequences])
     if len(hip_motion) >= 8:
         fft_vals = np.abs(np.fft.rfft(hip_motion - np.mean(hip_motion)))
         dominant_freq = np.argmax(fft_vals[1:]) + 1 if len(fft_vals) > 1 else 0
-        features.append(dominant_freq / len(hip_motion))  # Normalized frequency
+        features.append(dominant_freq / len(hip_motion))
     else:
         features.append(0.0)
     
-    # Longueur de foulée estimée (amplitude mouvement chevilles)
-    if len(sequences) >= 10:
-        ankle_range = np.ptp([seq[[27, 28], 0].mean() for seq in sequences])
-        features.append(ankle_range)
-    else:
-        features.append(0.0)
-    
-    # Oscillation verticale du centre de masse
-    com_y = np.array([seq[:, 1].mean() for seq in sequences])
-    features.append(np.std(com_y))
-    
-    # Symétrie gauche/droite (corrélation mouvements jambes)
-    if len(sequences) >= 5:
-        left_leg = np.array([seq[25, 0] for seq in sequences])
-        right_leg = np.array([seq[26, 0] for seq in sequences])
-        if np.std(left_leg) > 1e-6 and np.std(right_leg) > 1e-6:
-            corr = np.corrcoef(left_leg, right_leg)[0, 1]
-            features.append(corr if not np.isnan(corr) else 0.0)
-        else:
-            features.append(0.0)
-    else:
-        features.append(0.0)
-    
-    return np.array(features + [0] * 16)[:16]  # Pad to 16
+    return np.array(features + [0] * 16)[:16]
 
 def extract_gait_vector(frames_keypoints: List[np.ndarray], frame_shapes: List[Tuple[int, int]]) -> np.ndarray:
     """
@@ -123,13 +130,23 @@ def extract_gait_vector(frames_keypoints: List[np.ndarray], frame_shapes: List[T
     Returns:
         np.ndarray de shape (128,) - vecteur normalisé L2
     """
-    if not frames_keypoints or len(frames_keypoints) < 10:
+    # 0. Check de Qualité (Évite les vecteurs 'bruités')
+    valid_frames = []
+    valid_shapes = []
+    for kp, shape in zip(frames_keypoints, frame_shapes):
+        # On vérifie si les hanches (indices 23, 24) sont présentes (non nulles)
+        if np.any(kp[23, :2]) and np.any(kp[24, :2]):
+            valid_frames.append(kp)
+            valid_shapes.append(shape)
+    
+    if len(valid_frames) < 15:
+        # Trop peu de frames de qualité pour une signature fiable
         return np.zeros(128)
     
     # 1. Normalisation spatiale
     normalized = [
         normalize_keypoints(kp, shape) 
-        for kp, shape in zip(frames_keypoints, frame_shapes)
+        for kp, shape in zip(valid_frames, valid_shapes)
     ]
     
     # 2. Features angulaires par frame (12 features × 30 frames = 360 → réduit à 40 par pooling)
@@ -147,10 +164,15 @@ def extract_gait_vector(frames_keypoints: List[np.ndarray], frame_shapes: List[T
     mean_pose = np.mean(np.array([kp[:, :2] for kp in normalized]), axis=0).flatten()
     mean_pose = np.pad(mean_pose, (0, max(0, 32 - len(mean_pose))), mode='constant')[:32]
     
-    # 5. Concaténation + projection 128D via transformation linéaire simple
-    raw_vector = np.concatenate([angle_pooled, temporal, mean_pose])  # 40+16+32 = 88
-    extended = np.pad(raw_vector, (0, 128 - len(raw_vector)), mode='edge')[:128]
+    # 5. Features Anthropométriques (Ratios osseux en pixels réels)
+    avg_shape = frame_shapes[0] # On prend la résolution de la première frame 
+    skeleton = compute_skeleton_ratios(np.mean(normalized, axis=0), avg_shape)
     
-    # 6. Normalisation L2 pour compatibilité FAISS cosine/L2
+    # 6. Concaténation + projection 128D
+    # Total: 40 (angles) + 16 (temporal) + 32 (pose) + 16 (skeleton) = 104
+    raw_vector = np.concatenate([angle_pooled, temporal, mean_pose, skeleton])
+    extended = np.pad(raw_vector, (0, 128 - len(raw_vector)), mode='constant')[:128]
+    
+    # 7. Normalisation L2 finale
     norm = np.linalg.norm(extended) + 1e-8
     return extended / norm

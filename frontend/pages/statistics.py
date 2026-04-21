@@ -69,30 +69,36 @@ class StatisticsPage:
                 ui.label('OPÉRATIONNEL').classes('text-xl font-bold text-success')
 
         with ui.row().classes('w-full items-stretch'):
-            # --- GRAPH 1 : DISTRIBUTION RÉELLE ---
+            # --- GRAPH 1 : DISTRIBUTION RÉELLE (ECharts) ---
             with ui.column().classes('w-full md:w-1/2'):
                 with cyber_card().classes('h-full'):
                     ui.label('Distribution Réelle de Confiance').classes('font-bold mb-4')
-                    self.score_chart = ui.highchart({
-                        'title': False,
-                        'chart': {'type': 'column', 'backgroundColor': 'transparent'},
-                        'xAxis': {'categories': ['0-20%', '20-40%', '40-60%', '60-80%', '80-100%'], 'labels': {'style': {'color': '#fff'}}},
-                        'yAxis': {'title': {'text': 'Alertes'}, 'gridLineColor': '#ffffff11', 'labels': {'style': {'color': '#fff'}}},
-                        'series': [{'name': 'Identifications', 'data': data['confidence'], 'color': THEME['primary']}],
-                        'legend': {'enabled': False}
+                    self.score_chart = ui.echart({
+                        'xAxis': {'type': 'category', 'data': ['0-20%', '20-40%', '40-60%', '60-80%', '80-100%']},
+                        'yAxis': {'type': 'value', 'splitLine': {'lineStyle': {'color': '#ffffff11'}}},
+                        'series': [{
+                            'data': data['confidence'],
+                            'type': 'bar',
+                            'itemStyle': {'color': THEME['primary']}
+                        }],
+                        'textStyle': {'color': '#fff'}
                     }).classes('w-full h-64')
 
-            # --- GRAPH 2 : TIMELINE DYNAMIQUE ---
+            # --- GRAPH 2 : TIMELINE DYNAMIQUE (ECharts) ---
             with ui.column().classes('w-full md:w-1/2'):
                 with cyber_card().classes('h-full'):
                     ui.label('Volume d\'Activité (24h)').classes('font-bold mb-4')
-                    self.timeline_chart = ui.highchart({
-                        'title': False,
-                        'chart': {'type': 'areaspline', 'backgroundColor': 'transparent'},
-                        'xAxis': {'categories': data['timeline_labels'], 'labels': {'style': {'color': '#fff'}}},
-                        'yAxis': {'title': {'text': 'Détections'}, 'gridLineColor': '#ffffff11', 'labels': {'style': {'color': '#fff'}}},
-                        'series': [{'name': 'Activité', 'data': data['timeline'], 'color': THEME['secondary']}],
-                        'legend': {'enabled': False}
+                    self.timeline_chart = ui.echart({
+                        'xAxis': {'type': 'category', 'data': data['timeline_labels']},
+                        'yAxis': {'type': 'value', 'splitLine': {'lineStyle': {'color': '#ffffff11'}}},
+                        'series': [{
+                            'data': data['timeline'],
+                            'type': 'line',
+                            'smooth': True,
+                            'areaStyle': {},
+                            'itemStyle': {'color': THEME['secondary']}
+                        }],
+                        'textStyle': {'color': '#fff'}
                     }).classes('w-full h-64')
 
         # Rafraîchissement automatique
@@ -103,6 +109,7 @@ class StatisticsPage:
         data = await self.get_stats_data()
         self.score_chart.options['series'][0]['data'] = data['confidence']
         self.timeline_chart.options['series'][0]['data'] = data['timeline']
+        self.timeline_chart.options['xAxis']['data'] = data['timeline_labels']
         self.score_chart.update()
         self.timeline_chart.update()
 
