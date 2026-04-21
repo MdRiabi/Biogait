@@ -6,7 +6,6 @@ import os
 from app.config import get_settings
 from app.db.base import Base
 from app.db.session import engine
-from app.core.middleware import AuditMiddleware
 from app.core.security import limiter
 from app.api.v1.auth import router as auth_router
 
@@ -18,6 +17,7 @@ from app.api.v1.enrollment import router as enrollment_router
 from app.api.v1.recognition import router as recognition_router
 import sys
 from nicegui import ui
+from sqlalchemy.exc import OperationalError
 
 # Ajout du dossier racine au path pour trouver le module 'frontend'
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -39,18 +39,21 @@ async def lifespan(app: FastAPI):
     from app.core.security import hash_password
     from sqlalchemy.future import select
     
-    async with SessionLocal() as db:
-        result = await db.execute(select(User).limit(1))
-        if not result.scalar_one_or_none():
-            admin_user = User(
-                username="admin",
-                hashed_password=hash_password("admin123"),
-                role=UserRole.ADMIN,
-                is_approved=True
-            )
-            db.add(admin_user)
-            await db.commit()
-            logging.info("🚀 Default admin created (admin / admin123).")
+    try:
+        async with SessionLocal() as db:
+            result = await db.execute(select(User).limit(1))
+            if not result.scalar_one_or_none():
+                admin_user = User(
+                    username="admin",
+                    hashed_password=hash_password("admin123"),
+                    role=UserRole.ADMIN,
+                    is_approved=True
+                )
+                db.add(admin_user)
+                await db.commit()
+                logging.info("🚀 Default admin created (admin / admin123).")
+    except OperationalError as e:
+        logging.warning(f"Bootstrap admin skipped (DB busy): {e}")
 
     # 3. Synchronisation du moteur IA au démarrage
     from app.core.ia.realtime_processor import realtime_manager
@@ -68,7 +71,6 @@ app.state.limiter = limiter
 
 # Ajout des middlewares APRÈS l'initialisation du state
 app.add_middleware(SlowAPIMiddleware)
-app.add_middleware(AuditMiddleware)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 @app.exception_handler(RateLimitExceeded)
@@ -78,6 +80,15 @@ async def rate_limit_handler(request: Request, exc):
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(enrollment_router, prefix="/api/v1")
 app.include_router(recognition_router, prefix="/api/v1")
+
+@app.get("/api/health")
+async def api_health():
+    return {"status": "ok"}
+
+@app.get("/api/test-cam")
+async def api_test_cam():
+    file_path = os.path.join(os.path.dirname(__file__), "..", "tests", "test_cam.html")
+    return FileResponse(file_path)
 
 # Initialisation du Dashboard NiceGUI (Étape 5)
 init_frontend()
@@ -89,15 +100,3 @@ ui.run_with(
     title="BioGait Admin Dashboard",
     dark=True
 )
-
-@app.get("/health")
-
-@app.get("/test-cam")
-async def test_cam():
-    # Sert le fichier HTML de test situé dans tests/test_cam.html
-    file_path = os.path.join(os.path.dirname(__file__), "..", "tests", "test_cam.html")
-    return FileResponse(file_path)
-
-@app.get("/health")
-async def health():
-    return {"status": "ok"}

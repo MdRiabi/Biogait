@@ -94,6 +94,34 @@ class RealtimeGaitManager:
             "recognition": result
         }
 
+    def finalize_recognition(self, camera_id: str) -> Dict:
+        """Force une décision avec le buffer courant lors d'un arrêt manuel."""
+        if camera_id not in self.buffers:
+            return {"identified": False, "status": "UNKNOWN", "reason": "no_session", "confidence": 0.0}
+
+        buffer_len = len(self.buffers[camera_id])
+        if buffer_len < 10:
+            # Pas assez d'information biométrique robuste, on purge et renvoie un rejet explicite.
+            self.buffers[camera_id].clear()
+            self.shape_buffers[camera_id].clear()
+            self.empty_counters[camera_id] = 0
+            return {"identified": False, "status": "UNKNOWN", "reason": "insufficient_frames", "confidence": 0.0}
+
+        zone = self.camera_zones.get(camera_id, "normal")
+        kp_seq = self.pipeline.preprocessor.resample_sequence(list(self.buffers[camera_id]))
+        shapes_list = list(self.shape_buffers[camera_id])
+
+        try:
+            rec_result = self.pipeline.recognize(kp_seq, shapes_list, zone=zone)
+            return rec_result
+        except Exception as e:
+            print(f"Error in forced recognition for {camera_id}: {e}")
+            return {"identified": False, "status": "UNKNOWN", "reason": "recognition_error", "confidence": 0.0}
+        finally:
+            self.buffers[camera_id].clear()
+            self.shape_buffers[camera_id].clear()
+            self.empty_counters[camera_id] = 0
+
 # Instance globale (Singleton pour le prototype)
 pipeline = GaitRecognitionPipeline()
 realtime_manager = RealtimeGaitManager(pipeline)

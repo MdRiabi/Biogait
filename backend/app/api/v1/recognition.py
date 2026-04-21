@@ -88,6 +88,7 @@ async def websocket_mobile_endpoint(websocket: WebSocket):
     """Endpoint spécifique pour recevoir les frames via JSON de la caméra mobile."""
     await websocket.accept()
     print("[Mobile] Connexion caméra nomade acceptée.")
+    mobile_recording_state = {}
     try:
         while True:
             import json
@@ -95,7 +96,55 @@ async def websocket_mobile_endpoint(websocket: WebSocket):
             data = json.loads(data_str)
             camera_id = data.get("camera_id", "mobile_cam")
             image_data = data.get("image")
+            action = data.get("action")
+
+            if action == "start":
+                mobile_recording_state[camera_id] = True
+                await websocket.send_json({
+                    "type": "mobile_status",
+                    "camera_id": camera_id,
+                    "status": "recording_started",
+                    "message": "Enregistrement démarré"
+                })
+                continue
+
+            if action == "stop":
+                mobile_recording_state[camera_id] = False
+                rec = realtime_manager.finalize_recognition(camera_id)
+
+                alert_msg = {
+                    "type": "alert",
+                    "camera_id": camera_id,
+                    "timestamp": int(asyncio.get_event_loop().time()),
+                    "recognition_result": rec
+                }
+
+                async with SessionLocal() as db:
+                    display_name = rec.get("user_id") if rec.get("identified") else "INCONNU"
+                    new_alert = DetectionAlert(
+                        camera_id=camera_id,
+                        identified=rec.get("identified", False),
+                        username=display_name,
+                        confidence=rec.get("confidence", 0.0) / 100.0,
+                        anonymized_image=latest_frames.get(camera_id),
+                        is_anomaly=not rec.get("identified")
+                    )
+                    db.add(new_alert)
+                    await db.commit()
+
+                await websocket.send_json({
+                    "type": "mobile_result",
+                    "camera_id": camera_id,
+                    "status": "analysis_done",
+                    "result": rec,
+                    "message": "Personne identifiée" if rec.get("identified") else "Personne inconnue / non identifiée"
+                })
+                asyncio.create_task(dashboard_manager.broadcast_alert(alert_msg))
+                continue
             
+            if not mobile_recording_state.get(camera_id, False):
+                continue
+
             if image_data and image_data.startswith('data:image'):
                 base64_data = image_data.split(',')[1]
                 img_bytes = base64.b64decode(base64_data)
@@ -138,7 +187,7 @@ async def websocket_mobile_endpoint(websocket: WebSocket):
                                 identified=rec.get("identified", False),
                                 username=display_name,
                                 confidence=rec.get("confidence", 0.0) / 100.0,
-                                anonymized_image=anonymized_b64,
+                                anonymized_image=f"data:image/jpeg;base64,{anonymized_b64}",
                                 is_anomaly=not rec.get("identified") # Un inconnu est une anomalie
                             )
                             db.add(new_alert)

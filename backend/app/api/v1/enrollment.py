@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, HTTPException, UploadFile, File, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.models.user import User
 from app.core.ia.video_processor import VideoProcessor
 from app.core.crypto import encrypt_vector
@@ -14,14 +14,14 @@ router = APIRouter(prefix="/enrollment", tags=["Enrollment"])
 @router.post("/register", status_code=201)
 async def enroll_new_user(
     username: str,
-    video_file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    video_file: UploadFile = File(...)
 ):
-    # 1. Vérification existence utilisateur
-    result = await db.execute(select(User).where(User.username == username))
-    user = result.scalar_one_or_none()
-    if user:
-        raise HTTPException(status_code=400, detail="Username already exists")
+    # 1. Vérification existence utilisateur (transaction courte)
+    async with SessionLocal() as short_db:
+        result = await short_db.execute(select(User).where(User.username == username))
+        user = result.scalar_one_or_none()
+        if user:
+            raise HTTPException(status_code=400, detail="Username already exists")
 
     # 2. Sauvegarde temporaire et traitement IA
     try:
@@ -41,16 +41,17 @@ async def enroll_new_user(
         vector_bytes = vector.astype('float32').tobytes()
         nonce, ciphertext = encrypt_vector(vector_bytes)
 
-        # 5. Création utilisateur avec gabarit biométrique
-        new_user = User(
-            username=username,
-            hashed_password="dummy_hash_for_enroll", # À remplacer par vrai mot de passe
-            gait_iv=nonce,
-            gait_template=ciphertext,
-            is_enrolled=True
-        )
-        db.add(new_user)
-        await db.commit()
+        # 5. Création utilisateur avec gabarit biométrique (transaction courte)
+        async with SessionLocal() as short_db:
+            new_user = User(
+                username=username,
+                hashed_password="dummy_hash_for_enroll", # À remplacer par vrai mot de passe
+                gait_iv=nonce,
+                gait_template=ciphertext,
+                is_enrolled=True
+            )
+            short_db.add(new_user)
+            await short_db.commit()
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

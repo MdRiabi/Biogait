@@ -17,7 +17,8 @@ def mobile_cam_page():
             video_view = ui.html('<video id="mobile_video" autoplay playsinline style="width: 100%; border-radius: 10px; border: 2px solid #00F0FF;"></video>')
             
             # Status
-            status = ui.label('Prêt à transmettre').classes('text-sm mt-4 italic')
+            status = ui.label('Prêt à transmettre').classes('text-sm mt-4 italic').props('id=mobile_status')
+            result = ui.label('').classes('text-sm mt-2 font-bold').props('id=mobile_result')
             
             # Script JavaScript pour la capture et le streaming
             # Analyse espacée : On envoie une image toutes les 500ms (2 FPS) pour la stabilité
@@ -26,6 +27,7 @@ def mobile_cam_page():
             let stream = null;
             let ws = null;
             let timer = null;
+            let isRecording = false;
 
             async function startStreaming() {
                 try {
@@ -41,8 +43,34 @@ def mobile_cam_page():
                     
                     ws.onopen = () => {
                         console.log("Connecté au serveur PC");
-                        // Lancer la boucle de capture (Analyse espacée - 500ms)
-                        timer = setInterval(captureFrame, 500);
+                    };
+
+                    ws.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            if (data.type === "mobile_status" && data.status === "recording_started") {
+                                const s = getStatusElement();
+                                if (s) s.textContent = "Enregistrement en cours...";
+                            }
+                            if (data.type === "mobile_result" && data.status === "analysis_done") {
+                                const s = getStatusElement();
+                                const r = getResultElement();
+                                const rec = data.result || {};
+                                const conf = Number(rec.confidence || 0).toFixed(1);
+                                if (s) s.textContent = "Analyse terminée";
+                                if (r) {
+                                    if (rec.identified) {
+                                        r.textContent = `Personne identifiée (${conf}%)`;
+                                        r.style.color = "#00FF88";
+                                    } else {
+                                        r.textContent = `Personne inconnue / non identifiée (${conf}%)`;
+                                        r.style.color = "#FF4D4D";
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Erreur lecture message serveur", e);
+                        }
                     };
                 } catch (err) {
                     alert("Erreur accès caméra : " + err.message);
@@ -66,13 +94,46 @@ def mobile_cam_page():
                     image: data
                 }));
             }
+
+            function getStatusElement() { return document.getElementById("mobile_status"); }
+            function getResultElement() { return document.getElementById("mobile_result"); }
+
+            async function toggleRecording() {
+                if (!stream || !ws || ws.readyState !== WebSocket.OPEN) {
+                    await startStreaming();
+                }
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+                const statusEl = getStatusElement();
+                const resultEl = getResultElement();
+                const buttonEl = document.getElementById("mobile_toggle_btn");
+
+                if (!isRecording) {
+                    if (resultEl) resultEl.textContent = "";
+                    ws.send(JSON.stringify({ camera_id: "mobile_phone_01", action: "start" }));
+                    timer = setInterval(captureFrame, 500);
+                    isRecording = true;
+                    if (statusEl) statusEl.textContent = "Enregistrement en cours...";
+                    if (buttonEl) buttonEl.textContent = "STOP & ANALYZE";
+                } else {
+                    if (timer) {
+                        clearInterval(timer);
+                        timer = null;
+                    }
+                    ws.send(JSON.stringify({ camera_id: "mobile_phone_01", action: "stop" }));
+                    isRecording = false;
+                    if (statusEl) statusEl.textContent = "Analyse en cours...";
+                    if (buttonEl) buttonEl.textContent = "TAP TO START";
+                }
+            }
+
+            window.toggleBioGaitRecording = toggleRecording;
             
-            // Activation au clic pour respecter les règles de sécurité navigateur
-            window.addEventListener('click', () => {
-                if (!stream) startStreaming();
-            }, { once: true });
             </script>
             ''')
             
-            ui.button('TAP TO START', on_click=lambda: status.set_text('Transmission en cours...')).classes('w-full mt-auto mb-8').style('background-color: #00F0FF; color: black')
-            ui.label('Appuyez n\'importe où pour activer la caméra').classes('text-[10px] opacity-50')
+            def on_tap():
+                ui.run_javascript('window.toggleBioGaitRecording && window.toggleBioGaitRecording();')
+
+            ui.button('TAP TO START', on_click=on_tap).classes('w-full mt-auto mb-8').style('background-color: #00F0FF; color: black').props('id=mobile_toggle_btn')
+            ui.label('1er clic: enregistrer | 2e clic: arrêter et analyser').classes('text-[10px] opacity-50')

@@ -84,6 +84,7 @@ async def register_user(username_input, password_input, confirm_input) -> None:
             ui.notify('Inscription réussie ! En attente de validation Admin.', type='positive')
             ui.navigate.to(login_path)
         except Exception as e:
+            await db.rollback()
             ui.notify(f'Erreur : {str(e)}', type='negative')
 
 def login_register_pages():

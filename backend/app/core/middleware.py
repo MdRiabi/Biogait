@@ -6,6 +6,7 @@ from app.config import get_settings
 from app.db.session import SessionLocal
 from app.models.audit import AuditLog
 import time
+import asyncio
 
 settings = get_settings()
 
@@ -13,6 +14,16 @@ class AuditMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
         response = await call_next(request)
+        path = request.url.path
+
+        # Évite de bloquer l'UI sur les routes très fréquentes (assets/ws/health).
+        if (
+            path.startswith("/_nicegui")
+            or path.startswith("/api/v1/recognition/ws")
+            or path.startswith("/favicon")
+            or path == "/health"
+        ):
+            return response
         
         # Extraire user si JWT présent
         user_id = None
@@ -37,7 +48,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
         async with SessionLocal() as session:
             session.add(log_entry)
             try:
-                await session.commit()
+                # Ne jamais ralentir la réponse utilisateur à cause de l'audit log.
+                await asyncio.wait_for(session.commit(), timeout=0.5)
             except Exception:
                 await session.rollback()
                 
