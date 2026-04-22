@@ -27,12 +27,12 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Initialisation de la base de données (SQLite automatique)
+    # 1. Schéma SQLAlchemy (Postgres recommandé en prod ; SQLite possible en secours)
     from app.db.base import Base
     from app.db.session import engine, SessionLocal
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logging.info("✅ Database initialized (SQLite).")
+    logging.info("✅ Schéma base de données prêt (create_all).")
     
     # 2. Bootstrap Admin (Création du premier compte si vide)
     from app.models.user import User, UserRole

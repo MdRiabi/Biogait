@@ -29,19 +29,20 @@ class StatisticsPage:
                 confidence_data[idx] += 1
 
             # 2. Activité (Timeline 24h)
-            # On groupe par heure
+            # On groupe par heure - Version PostgreSQL
             timeline_data = []
             yesterday = datetime.now() - timedelta(days=1)
             result = await db.execute(
-                select(func.strftime('%H', DetectionAlert.timestamp), func.count(DetectionAlert.id))
+                select(func.extract('hour', DetectionAlert.timestamp).label('hour'), func.count(DetectionAlert.id))
                 .where(DetectionAlert.timestamp >= yesterday)
-                .group_by(func.strftime('%H', DetectionAlert.timestamp))
+                .group_by(func.extract('hour', DetectionAlert.timestamp))
             )
             timeline_rows = result.all()
             # Transformation en liste ordonnée
             hours = {f"{i:02d}h": 0 for i in range(24)}
-            for hour_str, count in timeline_rows:
-                hours[f"{hour_str}h"] = count
+            for hour_val, count in timeline_rows:
+                hour_int = int(hour_val) if hour_val is not None else 0
+                hours[f"{hour_int:02d}h"] = count
             
             return {
                 "confidence": confidence_data,

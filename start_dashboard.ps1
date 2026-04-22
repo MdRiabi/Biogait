@@ -2,6 +2,7 @@
 # Usage : Exécutez ce script depuis PowerShell à la racine du projet
 
 Write-Host "--- Démarrage de BioGait Admin Dashboard ---" -ForegroundColor Cyan
+Write-Host "Astuce : PostgreSQL/Redis Docker -> depuis la racine : docker compose -f docker/docker-compose.yml up -d" -ForegroundColor DarkGray
 
 # 1. Vérification du dossier backend
 if (-Not (Test-Path "backend")) {

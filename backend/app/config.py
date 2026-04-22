@@ -7,8 +7,9 @@ class Settings(BaseSettings):
     
     APP_NAME: str = "BioGait API"
     DEBUG: bool = False
-    DATABASE_URL: str = "postgresql+asyncpg://biogait:biogaitsecret@db:5432/biogait"
-    REDIS_URL: str = "redis://redis:6379/0"
+    # App sur la machine hôte → localhost. Dans Docker (même compose), utiliser @db:5432
+    DATABASE_URL: str = "postgresql+asyncpg://biogait:biogaitsecret@127.0.0.1:5432/biogait"
+    REDIS_URL: str = "redis://127.0.0.1:6379/0"
     SECRET_KEY: str = "supersecretkeyforjwtsigningchangeme"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30

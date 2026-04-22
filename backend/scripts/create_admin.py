@@ -26,7 +26,7 @@ async def create_admin():
             return
 
         # 3. Création du compte
-        username = input("Nom d'utilisateur admin (défaut: admin) : ") or "admin"
+        username = input("Nom d'utilisateur admin (défaut: mohamed) : ") or "mohamed"
         password = input("Mot de passe admin (défaut: admin123) : ") or "admin123"
         
         admin_user = User(

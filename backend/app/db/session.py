@@ -6,11 +6,22 @@ import logging
 settings = get_settings()
 is_sqlite = "sqlite" in settings.DATABASE_URL
 connect_args = {"check_same_thread": False, "timeout": 5} if is_sqlite else {}
+# Pool explicite pour Postgres (écritures concurrentes sans fichier unique verrouillé)
+pool_kwargs = (
+    {}
+    if is_sqlite
+    else {
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_timeout": 30,
+    }
+)
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     connect_args=connect_args,
     pool_pre_ping=True,
+    **pool_kwargs,
 )
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
