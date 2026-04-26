@@ -18,8 +18,10 @@ def get_local_ip():
 
 def mobile_qr_component():
     """Crée l'interface QR Code pour le Dashboard."""
-    ip = get_local_ip()
-    port = 8088 # Port 8088 pour éviter les conflits et autoriser l'accès externe
+    #ip = get_local_ip()
+     
+    ip = get_local_ip() 
+    port = 8088  # Port du serveur NiceGUI
     url = f"http://{ip}:{port}/mobile-cam"
     
     # Génération du QR Code

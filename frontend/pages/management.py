@@ -15,6 +15,7 @@ import asyncio
 import cv2
 from pathlib import Path
 
+
 class ManagementPage:
     def __init__(self):
         self.user_table = None
@@ -233,7 +234,12 @@ class ManagementPage:
                 user = result.scalar_one_or_none()
                 
                 if user:
-                    user.gait_template = profile_vector.astype('float32').tobytes()
+                    from app.core.crypto import encrypt_vector
+                    vector_bytes = profile_vector.astype('float32').tobytes()
+                    nonce, ciphertext = encrypt_vector(vector_bytes)
+                    
+                    user.gait_iv = nonce
+                    user.gait_template = ciphertext
                     user.is_enrolled = True
                     await db.commit()
                     ui.notify(f"PROFIL BLINDÉ : {username} identifié avec succès !", type='positive')

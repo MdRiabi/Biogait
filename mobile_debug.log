@@ -1,0 +1,8 @@
+2026-04-25 14:45:51,775 - INFO - --- DÉBUT DU TEST DE CONNEXION ---
+2026-04-25 14:45:51,775 - INFO - Cible : ws://10.63.44.96:8000/api/v1/recognition/ws/mobile
+2026-04-25 14:45:51,776 - INFO - Tentative de connexion WebSocket...
+2026-04-25 14:45:51,894 - ERROR - \u274c ERREUR INATTENDUE : BaseEventLoop.create_connection() got an unexpected keyword argument 'timeout'
+2026-04-25 14:48:31,807 - INFO - --- DÉBUT DU TEST DE CONNEXION ---
+2026-04-25 14:48:31,807 - INFO - Cible : ws://10.63.44.96:8000/api/v1/recognition/ws/mobile
+2026-04-25 14:48:31,807 - INFO - Tentative de connexion WebSocket...
+2026-04-25 14:48:31,905 - ERROR - \u274c ERREUR INATTENDUE : BaseEventLoop.create_connection() got an unexpected keyword argument 'timeout'

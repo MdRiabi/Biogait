@@ -11,7 +11,7 @@ class MonitoringPage:
     def __init__(self):
         self.events = []
         self.event_container = None
-        self.confidence_threshold = 0.85 # Seuil relevé à 85% pour la précision de sécurité
+        self.confidence_threshold = 0.85
 
     def handle_socket_msg(self, data: dict):
         """Répartit les messages selon leur type (alerte ou image)."""
@@ -22,16 +22,13 @@ class MonitoringPage:
             identified = res.get('identified', False)
             person = res.get('user_id', 'Inconnu')
             
-            # On ajoute TOUJOURS l'événement pour que l'utilisateur voit le changement
             self.add_event(data)
             
-            # Notification visuelle seulement si changement d'état ou haute confiance
             if identified:
                 ui.notify(f"ACCÈS AUTORISÉ : {person} ({conf*100:.1f}%)", position='top-right', type='positive')
-            elif conf > 0.4: # Si c'est un humain reconnu mais non autorisé
+            elif conf > 0.4:
                 ui.notify(f"SUJET NON IDENTIFIÉ ⚠️ ({conf*100:.1f}%)", position='top-right', type='warning')
         elif msg_type == 'frame':
-            # Mise à jour de l'image du flux live
             self.video_placeholder.set_source(data.get('image'))
 
     def add_event(self, event_data: dict):
@@ -57,7 +54,6 @@ class MonitoringPage:
         if self.event_container:
             with self.event_container:
                 ui.html(event_html)
-            # Garder seulement les 20 derniers events
             if len(self.event_container.default_slot.children) > 20:
                 self.event_container.default_slot.children.pop(0)
 
@@ -66,7 +62,6 @@ class MonitoringPage:
         check_auth()
         sidebar()
         
-        # Script pour écouter les alertes réelles en WebSocket
         ui.add_body_html('''
         <script>
         const alertWs = new WebSocket(`${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/recognition/ws/dashboard/alerts`);
@@ -77,31 +72,24 @@ class MonitoringPage:
         </script>
         ''')
         
-        # Écouteur Python pour les messages JS
         ui.on('biogait_event', lambda msg: self.handle_socket_msg(msg.args))
         
         with ui.row().classes('w-full items-stretch'):
-            # --- COLONNE GAUCHE : FLUX VIDÉO ---
             with ui.column().classes('flex-grow'):
                 with cyber_card().classes('w-full'):
                     ui.label('FLUX LIVE - ENTRÉE PRINCIPALE').classes('text-sm font-bold mb-2')
-                    # On utilise une image qui se rafraîchit ou on pourrait utiliser le WS
-                    # Pour la démo Dashboard, on simule l'affichage
                     self.video_placeholder = ui.interactive_image().classes('w-full bg-black rounded')
                     with ui.row().classes('items-center'):
                         self.traffic_led = ui.icon('circle', color='grey').classes('text-[10px]')
                         ui.label('Anonymisation active ✅').classes('text-xs italic text-success mt-1')
 
-            # --- COLONNE DROITE : ALERTES EN DIRECT ---
             with ui.column().classes('w-80'):
                 with cyber_card().classes('w-full h-full'):
                     ui.label('ÉVÉNEMENTS RÉCENTS').classes('text-sm font-bold mb-4')
                     self.event_container = ui.column().classes('w-full overflow-y-auto').style('max-height: 400px')
                 
-                # Ajout du QR Code pour la caméra mobile
                 mobile_qr_component()
                 
-                # --- RÉGLAGES DE SÉCURITÉ ---
                 with cyber_card().classes('w-full mt-4'):
                     ui.label('PARAMÈTRES SÉCURITÉ').classes('text-xs font-bold mb-2 text-primary')
                     ui.label(f'Seuil de confiance').classes('text-[10px] text-muted')
@@ -114,20 +102,15 @@ class MonitoringPage:
                     ui.slider(min=50, max=99, value=int(self.confidence_threshold*100), on_change=update_threshold).classes('w-full')
                     ui.label('Mode RGPD: ACTIF').classes('text-[8px] text-success italic mt-1')
 
-        # Boucle de rafraîchissement vidéo (Polling stable)
         ui.timer(0.5, self.update_live_feed)
-        
-        # Le rafraîchissement des événements est géré par les événements JS/WebSocket
 
     def update_live_feed(self):
         """Récupère la dernière image reçue depuis le stockage global."""
         if latest_frames:
-            # On prend la première caméra mobile disponible
             cam_id = list(latest_frames.keys())[0]
             img_data = latest_frames[cam_id]
             self.video_placeholder.set_source(img_data)
             
-            # Effet de voyant clignotant pour le trafic
             current_color = self.traffic_led.props['color']
             self.traffic_led.props(f'color={"primary" if current_color == "grey" else "grey"}')
         else:

@@ -196,7 +196,14 @@ class GaitRecognitionPipeline:
             count = 0
             for user in users:
                 if user.gait_template:
-                    vector = np.frombuffer(user.gait_template, dtype='float32')
+                    try:
+                        from app.core.crypto import decrypt_vector
+                        pt = decrypt_vector(user.gait_iv, user.gait_template)
+                        vector = np.frombuffer(pt, dtype='float32')
+                    except Exception as e:
+                        logging.error(f"❌ Impossible de déchiffrer le gabarit de {user.username} (clé perdue ou corruption) : {e}")
+                        continue
+                        
                     # S'assurer que le vecteur est 128D et normalisé
                     if vector.shape[0] == 128:
                         self.index.add_vectors(

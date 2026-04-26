@@ -1,102 +1,29 @@
-from contextlib import asynccontextmanager
-import asyncio
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, FileResponse
-import os
-from app.config import get_settings
-from app.db.base import Base
-from app.db.session import engine
-from app.core.security import limiter
-from app.api.v1.auth import router as auth_router
-
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-from starlette.middleware.cors import CORSMiddleware
-import logging
-from app.api.v1.enrollment import router as enrollment_router
-from app.api.v1.recognition import router as recognition_router
-import sys
 from nicegui import ui
-from sqlalchemy.exc import OperationalError
+from frontend.auth import login_register_pages
+from frontend.pages.monitoring import monitoring_page
+from frontend.pages.statistics import statistics_page
+from frontend.pages.management import management_page
+from frontend.pages.alerts import alerts_page
+from frontend.pages.mobile_cam import mobile_cam_page
 
-# Ajout du dossier racine au path pour trouver le module 'frontend'
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
-from frontend.main import init_frontend
-logging.basicConfig(level=logging.INFO)
-settings = get_settings()
+# On appelle directement les fonctions d'enregistrement ici.
+# Cela s'exécutera une seule fois au démarrage du script.
+login_register_pages()
+monitoring_page()      # Ceci enregistre la route '/'
+statistics_page()      # URL: /stats
+management_page()      # URL: /users
+alerts_page()          # URL: /alerts
+mobile_cam_page()      # URL: /mobile-cam
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 1. Schéma SQLAlchemy (Postgres recommandé en prod ; SQLite possible en secours)
-    from app.db.base import Base
-    from app.db.session import engine, SessionLocal
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logging.info("✅ Schéma base de données prêt (create_all).")
-    
-    # 2. Bootstrap Admin (Création du premier compte si vide)
-    from app.models.user import User, UserRole
-    from app.core.security import hash_password
-    from sqlalchemy.future import select
-    
-    try:
-        async with SessionLocal() as db:
-            result = await db.execute(select(User).limit(1))
-            if not result.scalar_one_or_none():
-                admin_user = User(
-                    username="admin",
-                    hashed_password=hash_password("admin123"),
-                    role=UserRole.ADMIN,
-                    is_approved=True
-                )
-                db.add(admin_user)
-                await db.commit()
-                logging.info("🚀 Default admin created (admin / admin123).")
-    except OperationalError as e:
-        logging.warning(f"Bootstrap admin skipped (DB busy): {e}")
+print("Interface BioGait initialisee.")
 
-    # 3. Synchronisation du moteur IA au démarrage
-    from app.core.ia.realtime_processor import realtime_manager
-    asyncio.create_task(realtime_manager.pipeline.synchronize_with_db())
-    
-    yield
-    
-    # Nettoyage
-    await engine.dispose()
-
-app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
-
-# 🔥 CRITIQUE : DOIT être défini IMMÉDIATEMENT après l'instanciation
-app.state.limiter = limiter
-
-# Ajout des middlewares APRÈS l'initialisation du state
-app.add_middleware(SlowAPIMiddleware)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
-@app.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request: Request, exc):
-    return {"detail": "Rate limit exceeded. Try again later."}
-
-app.include_router(auth_router, prefix="/api/v1")
-app.include_router(enrollment_router, prefix="/api/v1")
-app.include_router(recognition_router, prefix="/api/v1")
-
-@app.get("/api/health")
-async def api_health():
-    return {"status": "ok"}
-
-@app.get("/api/test-cam")
-async def api_test_cam():
-    file_path = os.path.join(os.path.dirname(__file__), "..", "tests", "test_cam.html")
-    return FileResponse(file_path)
-
-# Initialisation du Dashboard NiceGUI (Étape 5)
-init_frontend()
-
-# Montage de NiceGUI sur FastAPI (Définit les routes / et /login par défaut)
-ui.run_with(
-    app,
-    storage_secret="biogait_secret_session_key_123", # À changer en prod
-    title="BioGait Admin Dashboard",
-    dark=True
-)
+# Lancement de l'application
+if __name__ in {"__main__", "__mp_main__"}:
+    ui.run(
+        title='BioGait Admin Dashboard',
+        port=8088,
+        host='0.0.0.0',
+        reload=True,
+        dark=True,
+        storage_secret='biogait_secret_key_change_in_production',
+    )

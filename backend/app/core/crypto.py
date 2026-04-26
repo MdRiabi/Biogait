@@ -4,11 +4,15 @@ from app.config import get_settings
 
 settings = get_settings()
 
+import hashlib
+
 def get_encryption_key() -> bytes:
     """Récupère ou génère une clé de chiffrement stable."""
     # En prod, charger depuis un secret manager ou vault
     # Pour le dev, on dérive de SECRET_KEY si pas de clé spécifique
-    return settings.AES_KEY.encode('utf-8') if hasattr(settings, 'AES_KEY') and settings.AES_KEY else AESGCM.generate_key(bit_length=256)
+    if hasattr(settings, 'AES_KEY') and settings.AES_KEY:
+        return settings.AES_KEY.encode('utf-8')
+    return hashlib.sha256(settings.SECRET_KEY.encode('utf-8')).digest()
 
 def encrypt_vector(vector_bytes: bytes) -> tuple[bytes, bytes]:
     """Chiffre le vecteur biométrique et retourne (iv, ciphertext)."""

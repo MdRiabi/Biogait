@@ -20,6 +20,9 @@ def mobile_cam_page():
             status = ui.label('Prêt à transmettre').classes('text-sm mt-4 italic').props('id=mobile_status')
             result = ui.label('').classes('text-sm mt-2 font-bold').props('id=mobile_result')
             
+            # Réception des logs du téléphone vers le terminal Python
+            ui.on('mobile_log', lambda e: print(f"📱 [PHONE LOG]: {e.args}", flush=True))
+
             # Script JavaScript pour la capture et le streaming
             # Analyse espacée : On envoie une image toutes les 500ms (2 FPS) pour la stabilité
             ui.add_body_html('''
@@ -29,20 +32,42 @@ def mobile_cam_page():
             let timer = null;
             let isRecording = false;
 
-            async function startStreaming() {
+            function logDebug(msg) {
+                const logEl = document.getElementById("mobile_debug_log");
+                if (logEl) {
+                    logEl.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+                    logEl.scrollTop = logEl.scrollHeight;
+                }
+                console.log(msg);
                 try {
+                    if (window.NiceGUI) {
+                        window.NiceGUI.emit('mobile_log', msg);
+                    }
+                } catch(e) {}
+            }
+
+            async function startStreaming() {
+                logDebug("startStreaming: Initialisation...");
+                try {
+                    if (navigator.mediaDevices === undefined) {
+                        throw new Error("navigator.mediaDevices est undefined (le site n'est probablement pas en HTTPS ?)");
+                    }
+                    logDebug("startStreaming: Demande d'accès caméra...");
                     stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: "environment" }, // Caméra arrière
+                        video: { facingMode: "environment" }, 
                         audio: false 
                     });
+                    logDebug("startStreaming: Caméra obtenue !");
                     document.getElementById('mobile_video').srcObject = stream;
                     
-                    // Connexion WebSocket locale au serveur BioGait
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    ws = new WebSocket(`${protocol}//${window.location.host}/api/v1/recognition/ws/mobile`);
+                    const wsUrl = `${protocol}//${window.location.host}/api/v1/recognition/ws/mobile`;
+                    logDebug(`startStreaming: Connexion WebSocket -> ${wsUrl}`);
+                    
+                    ws = new WebSocket(wsUrl);
                     
                     ws.onopen = () => {
-                        console.log("Connecté au serveur PC");
+                        logDebug("WebSocket: CONNECTÉ au serveur PC");
                     };
 
                     ws.onmessage = (event) => {
@@ -69,11 +94,17 @@ def mobile_cam_page():
                                 }
                             }
                         } catch (e) {
-                            console.error("Erreur lecture message serveur", e);
+                            logDebug("WebSocket Erreur lecture: " + e.message);
                         }
                     };
+                    ws.onerror = (e) => {
+                        logDebug("WebSocket Erreur !");
+                    };
+                    ws.onclose = () => {
+                        logDebug("WebSocket Fermé !");
+                    };
                 } catch (err) {
-                    alert("Erreur accès caméra : " + err.message);
+                    logDebug("❌ ERREUR CAMÉRA: " + err.message + " (" + err.name + ")");
                 }
             }
 
@@ -87,8 +118,7 @@ def mobile_cam_page():
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
-                // Envoi de l'image en Base64
-                const data = canvas.toDataURL('image/jpeg', 0.6); // Qualité 60%
+                const data = canvas.toDataURL('image/jpeg', 0.6); 
                 ws.send(JSON.stringify({
                     camera_id: "mobile_phone_01",
                     image: data
@@ -99,41 +129,66 @@ def mobile_cam_page():
             function getResultElement() { return document.getElementById("mobile_result"); }
 
             async function toggleRecording() {
-                if (!stream || !ws || ws.readyState !== WebSocket.OPEN) {
-                    await startStreaming();
-                }
-                if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-                const statusEl = getStatusElement();
-                const resultEl = getResultElement();
-                const buttonEl = document.getElementById("mobile_toggle_btn");
-
-                if (!isRecording) {
-                    if (resultEl) resultEl.textContent = "";
-                    ws.send(JSON.stringify({ camera_id: "mobile_phone_01", action: "start" }));
-                    timer = setInterval(captureFrame, 500);
-                    isRecording = true;
-                    if (statusEl) statusEl.textContent = "Enregistrement en cours...";
-                    if (buttonEl) buttonEl.textContent = "STOP & ANALYZE";
-                } else {
-                    if (timer) {
-                        clearInterval(timer);
-                        timer = null;
+                logDebug("=== Bouton cliqué ===");
+                try {
+                    if (!stream || !ws || ws.readyState !== WebSocket.OPEN) {
+                        logDebug("toggleRecording: streaming non actif, lancement...");
+                        await startStreaming();
                     }
-                    ws.send(JSON.stringify({ camera_id: "mobile_phone_01", action: "stop" }));
-                    isRecording = false;
-                    if (statusEl) statusEl.textContent = "Analyse en cours...";
-                    if (buttonEl) buttonEl.textContent = "TAP TO START";
+                    if (!ws || ws.readyState !== WebSocket.OPEN) {
+                        logDebug("toggleRecording: Abandon, WebSocket non ouvert.");
+                        return;
+                    }
+
+                    const statusEl = getStatusElement();
+                    const resultEl = getResultElement();
+                    const buttonEl = document.getElementById("mobile_toggle_btn");
+
+                    if (!isRecording) {
+                        if (resultEl) resultEl.textContent = "";
+                        ws.send(JSON.stringify({ camera_id: "mobile_phone_01", action: "start" }));
+                        timer = setInterval(captureFrame, 500);
+                        isRecording = true;
+                        if (statusEl) statusEl.textContent = "Enregistrement en cours...";
+                        if (buttonEl) buttonEl.innerText = "STOP & ANALYZE";
+                        logDebug("Action: START envoyée");
+                    } else {
+                        if (timer) {
+                            clearInterval(timer);
+                            timer = null;
+                        }
+                        ws.send(JSON.stringify({ camera_id: "mobile_phone_01", action: "stop" }));
+                        isRecording = false;
+                        if (statusEl) statusEl.textContent = "Analyse en cours...";
+                        if (buttonEl) buttonEl.innerText = "TAP TO START";
+                        logDebug("Action: STOP envoyée");
+                    }
+                } catch(e) {
+                    logDebug("❌ ERREUR TOGGLE: " + e.message);
                 }
             }
 
-            window.toggleBioGaitRecording = toggleRecording;
+            const attachBtn = () => {
+                const btn = document.getElementById("mobile_toggle_btn");
+                if (btn) {
+                    btn.removeEventListener("click", toggleRecording);
+                    btn.addEventListener("click", toggleRecording);
+                    logDebug("Evénement bouton attaché avec succès.");
+                } else {
+                    setTimeout(attachBtn, 200);
+                }
+            };
+            attachBtn();
             
             </script>
             ''')
             
-            def on_tap():
-                ui.run_javascript('window.toggleBioGaitRecording && window.toggleBioGaitRecording();')
-
-            ui.button('TAP TO START', on_click=on_tap).classes('w-full mt-auto mb-8').style('background-color: #00F0FF; color: black').props('id=mobile_toggle_btn')
+            ui.html('''
+            <button id="mobile_toggle_btn" style="width: 100%; margin-top: auto; margin-bottom: 1rem; background-color: #00F0FF; color: black; padding: 12px; font-weight: bold; border-radius: 4px; border: none; font-size: 16px; cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 6px rgba(0, 240, 255, 0.3);">
+                TAP TO START
+            </button>
+            <div id="mobile_debug_log" style="width: 100%; height: 100px; overflow-y: auto; background-color: #111; color: #0f0; font-family: monospace; font-size: 10px; padding: 5px; margin-bottom: 1rem; border: 1px solid #333;">
+                [Log initialisé]
+            </div>
+            ''')
             ui.label('1er clic: enregistrer | 2e clic: arrêter et analyser').classes('text-[10px] opacity-50')

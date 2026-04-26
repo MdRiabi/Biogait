@@ -1,7 +1,23 @@
 from nicegui import ui
 import httpx
+import socket  # Import nécessaire pour récupérer l'IP
 
-API_BASE = "http://localhost:8000/api/v1"
+# Fonction pour récupérer l'IP locale
+def get_local_ip():
+    """Récupère l'adresse IP locale de la machine serveur."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # N'a pas besoin de se connecter réellement
+        s.connect(('8.8.8.8', 1))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = '127.0.0.1'
+    finally:
+        s.close()
+    return ip
+
+# Utilisation de l'IP dynamique pour l'API
+API_BASE = f"http://{get_local_ip()}:8088/api/v1"
 
 def show_status(msg: str, type: str = 'info'):
     ui.notify(msg, type=type, position='top')
@@ -38,4 +54,4 @@ def enrollment_page():
             .props('unelevated color=primary').style('width: 100%; margin-top: 20px')
 
 if __name__ in {"__main__", "__mp_main__"}:
-    ui.run(host='127.0.0.1', port=8080, reload=False)
+    ui.run(host='0.0.0.0', port=8080, reload=False)
