@@ -17,8 +17,8 @@ def mobile_cam_page():
             video_view = ui.html('<video id="mobile_video" autoplay playsinline style="width: 100%; border-radius: 10px; border: 2px solid #00F0FF;"></video>')
             
             # Status
-            status = ui.label('Prêt à transmettre').classes('text-sm mt-4 italic').props('id=mobile_status')
-            result = ui.label('').classes('text-sm mt-2 font-bold').props('id=mobile_result')
+            ui.html('<div id="mobile_status" class="text-sm mt-4 italic text-white text-center">Prêt à transmettre</div>')
+            ui.html('<div id="mobile_result" class="text-sm mt-2 font-bold text-center"></div>')
             
             # Réception des logs du téléphone vers le terminal Python
             ui.on('mobile_log', lambda e: print(f"📱 [PHONE LOG]: {e.args}", flush=True))

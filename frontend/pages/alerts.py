@@ -21,7 +21,7 @@ class AlertsPage:
             alerts = result.scalars().all()
             return [
                 {
-                    "timestamp": a.timestamp.strftime("%H:%M:%S") if a.timestamp else "N/A",
+                    "timestamp": a.timestamp.strftime("%H:%M:%S") if isinstance(a.timestamp, datetime) else (a.timestamp.split(" ")[1] if isinstance(a.timestamp, str) and " " in a.timestamp else str(a.timestamp)),
                     "camera_id": a.camera_id,
                     "username": a.username or "Inconnu",
                     "status": "DÉTECTÉ" if a.identified else "INCONNU",

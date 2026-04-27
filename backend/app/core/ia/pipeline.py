@@ -104,11 +104,19 @@ class GaitRecognitionPipeline:
 
         if confidence >= threshold:
             print(f" [IA-DECISION] ✅ MATCH : {user_id} ({confidence:.1f}%) | Dist: {dist:.3f}")
+            
+            # Nettoyage pour la sérialisation JSON
+            safe_metadata = dict(metadata)
+            if "role" in safe_metadata and hasattr(safe_metadata["role"], "value"):
+                safe_metadata["role"] = safe_metadata["role"].value
+            elif "role" in safe_metadata:
+                safe_metadata["role"] = str(safe_metadata["role"])
+                
             return {
                 "identified": True,
                 "user_id": user_id,
-                "confidence": confidence,
-                "metadata": metadata,
+                "confidence": float(confidence),
+                "metadata": safe_metadata,
                 "status": "AUTHORIZED"
             }
         
@@ -118,7 +126,7 @@ class GaitRecognitionPipeline:
         return {
             "identified": False,
             "user_id": "unknown",
-            "confidence": confidence,
+            "confidence": float(confidence),
             "status": "UNKNOWN",
             "reason": reason
         }
